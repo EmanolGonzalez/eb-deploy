@@ -11,6 +11,7 @@ Scripts de despliegue para la aplicación. Los artefactos (`.rar`) se almacenan 
 ├── update.sh         - Actualiza a una nueva versión
 ├── rollback.sh       - Revierte a una versión anterior
 ├── healthcheck.sh    - Verifica que la aplicación está sana
+├── status.sh         - Muestra versión desplegada y estado de frontend/backend
 └── runbook.md        - Paso a paso operacional
 ```
 
@@ -61,6 +62,12 @@ bash rollback.sh
 
 # Verificar que la aplicación está sana
 bash healthcheck.sh
+
+# Ver estado completo (versiones + servicios)
+bash status.sh
+
+# Ver estado en JSON (para monitoreo/automatización)
+bash status.sh --json
 ```
 
 ## Gestión de servicios
