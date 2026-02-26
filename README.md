@@ -1,54 +1,101 @@
 # eb-deploy - Deploy Scripts
 
-Public repository containing installation and update scripts for the application.
-Artifacts are stored in a **private** Azure Blob Storage container and are never committed here.
+Scripts de despliegue para la aplicación. Los artefactos (`.rar`) se almacenan en un contenedor **privado** de Azure Blob Storage y nunca se suben a este repositorio.
 
-## Repository structure
+## Estructura del repositorio
 
 ```
-scripts/
-├── install.sh      - Full installation of the application
-├── update.sh       - Update to a new version
-├── rollback.sh     - Rollback to the previous backup
-├── healthcheck.sh  - Verify the application is healthy
-└── README.md       - This file
+├── setup-server.sh   - Prepara el entorno del servidor (primera vez)
+├── fetch-all.sh      - Descarga todos los scripts desde GitHub
+├── install.sh        - Instala un componente (frontend o backend)
+├── update.sh         - Actualiza a una nueva versión
+├── rollback.sh       - Revierte a una versión anterior
+├── healthcheck.sh    - Verifica que la aplicación está sana
+└── runbook.md        - Paso a paso operacional
 ```
 
+## Arquitectura en el servidor
 
-## Required environment variables
+```
+Cliente
+   │
+   ▼
+Nginx :80
+   ├── /        → archivos estáticos  /app/releases/frontend/current
+   └── /api     → proxy               http://127.0.0.1:5000
 
-| Variable                | Description                                        |
-|-------------------------|----------------------------------------------------|
-| `AZURE_STORAGE_ACCOUNT` | Azure Storage account name                         |
-| `AZURE_CONTAINER_NAME`  | Blob container name where artifacts are stored     |
-| `SAS_TOKEN`             | SAS token for blob access (injected at runtime)    |
-| `APP_DIR`               | Target installation directory (default `/app`)     |
-| `BACKUP_DIR`            | Backup directory for rollback (default `/app-backup`) |
-| `APP_URL`               | Application base URL for health checks             |
+Backend .NET (systemd: backend)
+   └── escucha en :5000 (solo localhost)
+```
 
-> **Important:** Never commit secrets, SAS tokens, or credentials to this repository.
-> All sensitive values must be injected at runtime via environment variables or a secrets manager.
+Configuración persistente en `/app/config/storage.conf` (creada por `setup-server.sh`).
 
-## Usage
+## Primer despliegue
 
 ```bash
-# Install interactively (select component/version)
-export AZURE_SAS_TOKEN="?your_sas_token"
-./install.sh
+# 1. Descargar setup-server.sh
+mkdir -p /app/scripts && cd /app/scripts
+wget -O setup-server.sh https://raw.githubusercontent.com/<usuario>/<repo>/main/setup-server.sh
+chmod +x setup-server.sh
 
-# Update interactively (select component/version)
-export AZURE_SAS_TOKEN="?your_sas_token"
-./update.sh
+# 2. Preparar el entorno (instala Nginx, Node.js, .NET, systemd, descarga scripts)
+bash setup-server.sh
 
-# Roll back interactively (select component/version)
-./rollback.sh
-
-# Check application health
-APP_URL=http://localhost:3000 ./healthcheck.sh
+# 3. Instalar cada componente
+bash install.sh   # selecciona frontend
+bash install.sh   # selecciona backend
 ```
 
-## Notes
+El SAS token se introduce sin `?`: `sv=2024-11-04&ss=b&srt=sco&sp=rl&sig=...`
 
-- Artifact storage is private (Azure Blob Storage). This repo contains only the scripts.
-- No CI/CD workflows are defined here. Pipelines are managed externally.
-- No source code of the application is stored in this repository.
+El SAS token necesita permisos **Read + List** sobre el contenedor, con resource types **Service + Container + Object**.
+
+## Operaciones de mantenimiento
+
+```bash
+# Actualizar un componente (guarda versión anterior, hace rollback automático si falla)
+bash update.sh
+
+# Revertir manualmente a una versión anterior
+bash rollback.sh
+
+# Verificar que la aplicación está sana
+bash healthcheck.sh
+```
+
+## Gestión de servicios
+
+```bash
+# Estado
+systemctl status nginx
+systemctl status backend
+
+# Reiniciar
+systemctl restart nginx
+systemctl restart backend
+
+# Logs en tiempo real
+journalctl -u backend -f
+journalctl -u nginx -f
+
+# Últimas 50 líneas
+journalctl -u backend -n 50
+```
+
+## Estructura de artefactos en Azure Blob Storage
+
+```
+<container>/
+├── frontend/
+│   └── <version>/
+│       └── app.rar
+└── backend/
+    └── <version>/
+        └── app.rar
+```
+
+## Notas
+
+- El almacenamiento de artefactos es privado. Este repositorio solo contiene los scripts.
+- No hay pipelines CI/CD en este repositorio. Se gestionan externamente.
+- No hay código fuente de la aplicación en este repositorio.
