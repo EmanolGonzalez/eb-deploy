@@ -54,7 +54,7 @@ El SAS token necesita permisos **Read + List** sobre el contenedor, con resource
 ## Operaciones de mantenimiento
 
 ```bash
-# Actualizar un componente (guarda versión anterior, hace rollback automático si falla)
+# Actualizar un componente (guarda versión anterior)
 bash update.sh
 
 # Revertir manualmente a una versión anterior
@@ -62,6 +62,9 @@ bash rollback.sh
 
 # Verificar que la aplicación está sana
 bash healthcheck.sh
+
+# Verificar sin romper flujo (solo advertencias)
+bash healthcheck.sh backend --soft
 
 # Ver estado completo (versiones + servicios)
 bash status.sh

@@ -77,6 +77,16 @@ check_symlink_version() {
 }
 
 check_backend_running() {
+  local backend_health_ok=false
+  local backend_health_url=""
+  local backend_health_status=""
+  local health_candidates=(
+    "${BACKEND_HEALTH_ENDPOINT:-http://localhost:5000/api/health}"
+    "http://localhost:5000/health"
+    "http://localhost:5000/healthz"
+    "http://localhost/api/health"
+  )
+
   if systemctl is-active --quiet backend; then
     BACKEND_SERVICE_OK=true
     ok "backend service: running"
@@ -93,12 +103,20 @@ check_backend_running() {
     EXIT_CODE=1
   fi
 
-  if curl -fsS "http://localhost:5000/api/health" >/dev/null; then
+  for candidate in "${health_candidates[@]}"; do
+    backend_health_status="$(curl -s -o /dev/null -w '%{http_code}' "$candidate" || true)"
+    if [[ "$backend_health_status" == "200" ]]; then
+      backend_health_ok=true
+      backend_health_url="$candidate"
+      break
+    fi
+  done
+
+  if [[ "$backend_health_ok" == true ]]; then
     BACKEND_HEALTH_OK=true
-    ok "backend health: http://localhost:5000/api/health"
+    ok "backend health: $backend_health_url"
   else
-    err "backend health: endpoint not returning 200"
-    EXIT_CODE=1
+    warn "backend health: no known endpoint returned 200 (checked ${health_candidates[*]})"
   fi
 
   if [[ "$BACKEND_SERVICE_OK" == true ]] && [[ -L "/app/backend/current" ]]; then

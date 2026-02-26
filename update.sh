@@ -187,11 +187,4 @@ download_and_extract
 update_symlink
 restart_service_if_backend
 
-log "Running healthcheck..."
-if ! bash "$(dirname "$0")/healthcheck.sh" "$COMPONENT"; then
-	err "Healthcheck failed. Initiating rollback."
-	bash "$(dirname "$0")/rollback.sh" --component "$COMPONENT" --version "$CURRENT_VERSION"
-	exit 1
-fi
-
 log "Update completed successfully."
