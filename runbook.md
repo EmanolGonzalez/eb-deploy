@@ -5,6 +5,29 @@
 
 Este runbook describe el paso a paso para preparar el entorno y operar los scripts de despliegue, actualización y rollback.
 
+## Prerrequisito: hosts (evitar IP)
+
+Antes del despliegue, en entornos cerrados sin DNS interno, agrega los aliases necesarios en hosts.
+
+Linux:
+```bash
+sudo nano /etc/hosts
+```
+
+Windows:
+```text
+C:\Windows\System32\drivers\etc\hosts
+```
+
+Ejemplo:
+```text
+10.10.10.10  test-esb.tribunal-electoral.gob.pa
+10.10.10.11  esb.tribunal-electoral.gob.pa
+10.10.10.12  bussec.tribunal-electoral.gob.pa
+10.10.10.13  buste.tribunal-electoral.gob.pa
+10.10.10.20  sql.entrega.local
+```
+
 ## Preparación del entorno (primera vez)
 
 1. Crea la carpeta de scripts:
@@ -26,8 +49,11 @@ Este runbook describe el paso a paso para preparar el entorno y operar los scrip
    bash install.sh   # selecciona frontend
    bash install.sh   # selecciona backend
    ```
+
 ## Operaciones de mantenimiento
+
 Una vez el entorno está preparado, puedes usar los siguientes scripts para mantenimiento y gestión de versiones:
+
 ### Instalación manual de una nueva versión
 ```bash
 bash install.sh
@@ -40,13 +66,52 @@ bash update.sh
 # Sigue los prompts para SAS_TOKEN, componente y versión
 ```
 
+Notas de actualización:
+- `update.sh` no ejecuta healthcheck bloqueante.
+- Si necesitas validar luego del update, usa `status.sh` o `healthcheck.sh --soft`.
+
 ### Rollback
 ```bash
 bash rollback.sh
 # Selecciona el componente y la versión local a restaurar
 ```
 
+Notas de rollback:
+- `rollback.sh` ejecuta healthcheck en modo suave (`--soft`) para no bloquear el flujo por transitorios.
+
 ### Healthcheck
 ```bash
-bash healthcheck.sh
+bash healthcheck.sh backend
+bash healthcheck.sh frontend
+
+# Modo no bloqueante
+bash healthcheck.sh backend --soft
+```
+
+### Estado operativo
+```bash
+bash status.sh
+
+# Para automatización
+bash status.sh --json
+```
+
+## Operación de servicios y logs
+
+```bash
+# Estado
+systemctl status nginx
+systemctl status backend
+
+# Reinicio
+systemctl restart nginx
+systemctl restart backend
+
+# Logs en vivo
+journalctl -u backend -f
+journalctl -u nginx -f
+
+# Últimas líneas
+journalctl -u backend -n 50
+journalctl -u nginx -n 50
 ```

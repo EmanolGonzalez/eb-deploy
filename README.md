@@ -31,6 +31,39 @@ Backend .NET 9 (systemd: backend)
 
 Configuración persistente en `/app/config/storage.conf` (creada por `setup-server.sh`).
 
+## Hosts (evitar usar IP)
+
+Para los servicios SOAP del TE en entornos cerrados, si no hay resolución DNS, agrega los dominios en hosts para evitar usar IP directa.
+
+Linux (servidor o cliente Linux):
+```bash
+sudo nano /etc/hosts
+```
+
+Windows (equivalente):
+```text
+C:\Windows\System32\drivers\etc\hosts
+```
+
+Ejemplo de entradas para SOAP TE (usar las IP reales que te entregue infraestructura):
+```text
+10.10.10.10  test-esb.tribunal-electoral.gob.pa
+10.10.10.11  esb.tribunal-electoral.gob.pa
+10.10.10.12  bussec.tribunal-electoral.gob.pa
+10.10.10.13  buste.tribunal-electoral.gob.pa
+10.10.10.20  sql.entrega.local
+```
+
+Luego accede por:
+```text
+https://test-esb.tribunal-electoral.gob.pa
+```
+
+Para base de datos en otro servidor, usa el alias en la cadena de conexión:
+```text
+Server=sql.entrega.local,1433;Database=EB;User ID=<usuario>;Password=<password>;TrustServerCertificate=True;
+```
+
 ## Primer despliegue
 
 ```bash
@@ -90,6 +123,7 @@ journalctl -u nginx -f
 
 # Últimas 50 líneas
 journalctl -u backend -n 50
+journalctl -u nginx -n 50
 ```
 
 ## Estructura de artefactos en Azure Blob Storage
