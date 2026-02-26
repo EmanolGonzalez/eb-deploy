@@ -12,9 +12,22 @@ set -e
 # Supports frontend/backend, dynamic version listing, secure SAS token handling
 # =============================================================================
 
-# ----------------------------- CONFIGURATION ---------------------------------
-STORAGE_ACCOUNT="egteststore"
-BASE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/releases"
+CONFIG_FILE="/app/config/storage.conf"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  log "Configuration file $CONFIG_FILE not found."
+  read -rp "Enter Azure Storage Account: " STORAGE_ACCOUNT
+  read -rp "Enter Azure Container Name: " CONTAINER_NAME
+  BASE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}"
+  mkdir -p /app/config
+  cat > "$CONFIG_FILE" <<EOF
+STORAGE_ACCOUNT="$STORAGE_ACCOUNT"
+CONTAINER_NAME="$CONTAINER_NAME"
+BASE_URL="$BASE_URL"
+EOF
+  log "Configuration file created at $CONFIG_FILE."
+else
+  source "$CONFIG_FILE"
+fi
 INSTALL_BASE="/app"
 
 # ----------------------------- UTILITY FUNCTIONS -----------------------------
