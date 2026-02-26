@@ -53,12 +53,18 @@ arrow_select "Select version to rollback:" "${VERSIONS[@]}"
 PREVIOUS_VERSION="$ARROW_SELECTION"
 
 PREVIOUS_RELEASE_DIR="${RELEASES_DIR}/${PREVIOUS_VERSION}"
-[[ ! -d "$PREVIOUS_RELEASE_DIR" ]] && err "Release directory not found." && exit 1
+if [[ ! -d "$PREVIOUS_RELEASE_DIR" ]]; then
+	err "Release directory not found."
+	exit 1
+fi
 
 log "Restoring symlink: $CURRENT_LINK -> $PREVIOUS_RELEASE_DIR"
 ln -sfn "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK"
 
-[[ "$COMPONENT" == "backend" ]] && log "Restarting backend service" && systemctl restart backend || true
+if [[ "$COMPONENT" == "backend" ]]; then
+	log "Restarting backend service"
+	systemctl restart backend || true
+fi
 
 log "Running healthcheck..."
 if ! bash "$(dirname "$0")/healthcheck.sh"; then

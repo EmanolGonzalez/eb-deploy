@@ -40,10 +40,16 @@ arrow_select() {
 prompt_sas_token() {
 	if [[ -n "$AZURE_SAS_TOKEN" ]]; then
 		read -rp "Reuse existing SAS token? [y/N]: " reuse
-		[[ "$reuse" =~ ^[Yy]$ ]] && SAS_TOKEN="$AZURE_SAS_TOKEN" && return
+		if [[ "$reuse" =~ ^[Yy]$ ]]; then
+			SAS_TOKEN="$AZURE_SAS_TOKEN"
+			return
+		fi
 	fi
 	read -rsp "Enter Azure SAS token (e.g. sv=2024-...&sig=...): " SAS_TOKEN; echo
-	[[ -z "$SAS_TOKEN" ]] && err "SAS token required." && exit 1
+	if [[ -z "$SAS_TOKEN" ]]; then
+		err "SAS token required."
+		exit 1
+	fi
 	# Normalize: strip leading '?' if present
 	SAS_TOKEN="${SAS_TOKEN#\?}"
 	log "SAS token received: ${#SAS_TOKEN} characters (...${SAS_TOKEN: -6})"
@@ -52,6 +58,12 @@ prompt_sas_token() {
 select_component() {
 	arrow_select "Select component:" frontend backend
 	COMPONENT="$ARROW_SELECTION"
+}
+
+version_is_newer() {
+	local candidate="$1"
+	local current="$2"
+	[[ "$candidate" != "$current" ]] && [[ "$(printf '%s\n%s\n' "$current" "$candidate" | sort -V | tail -n1)" == "$candidate" ]]
 }
 
 list_versions() {
@@ -65,21 +77,29 @@ list_versions() {
 		err "        3) Storage account and container exist"
 		exit 1
 	fi
-	VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -V))
-	[[ ${#VERSIONS[@]} -eq 0 ]] && err "No versions found." && exit 1
+	mapfile -t VERSIONS < <(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -Vu)
+	if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+		err "No versions found."
+		exit 1
+	fi
+	log "Versions found: ${VERSIONS[*]}"
 	# Detect current version
 	local current_link="/app/${COMPONENT}/current"
 	if [[ -L "$current_link" ]]; then
-		CURRENT_VERSION=$(basename $(readlink "$current_link"))
+		CURRENT_VERSION=$(basename "$(readlink "$current_link")")
 		log "Current installed version: $CURRENT_VERSION"
 		FILTERED_VERSIONS=()
 		for v in "${VERSIONS[@]}"; do
-			if [[ "$v" > "$CURRENT_VERSION" ]]; then
+			if version_is_newer "$v" "$CURRENT_VERSION"; then
 				FILTERED_VERSIONS+=("$v")
 			fi
 		done
 		VERSIONS=("${FILTERED_VERSIONS[@]}")
-		[[ ${#VERSIONS[@]} -eq 0 ]] && err "No newer versions available." && exit 1
+		if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+			err "No newer versions available."
+			exit 1
+		fi
+		log "Newer versions available: ${VERSIONS[*]}"
 	fi
 }
 
@@ -111,7 +131,10 @@ update_symlink() {
 }
 
 restart_service_if_backend() {
-	[[ "$COMPONENT" == "backend" ]] && log "Restarting backend service" && systemctl restart backend || true
+	if [[ "$COMPONENT" == "backend" ]]; then
+		log "Restarting backend service"
+		systemctl restart backend || true
+	fi
 }
 
 require_root
