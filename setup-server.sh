@@ -67,7 +67,7 @@ if [[ ! -f /etc/nginx/sites-available/app ]]; then
 server {
     listen 80;
     server_name _;
-    root /app/releases/frontend/current;
+    root /app/frontend/current;
     index index.html;
 
     location / {
@@ -98,8 +98,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/dotnet /app/releases/backend/current/Xproyect.Api.Web.dll
-WorkingDirectory=/app/releases/backend/current
+ExecStart=/usr/bin/dotnet /app/backend/current/publish/api.dll
+WorkingDirectory=/app/backend/current/publish
 EnvironmentFile=-/etc/xproyect-api.env
 Restart=always
 RestartSec=5
