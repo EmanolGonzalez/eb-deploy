@@ -113,8 +113,6 @@ EOF
   systemctl enable backend
 fi
 
-# 10. Despliegue inicial de la aplicación
-log "Ejecutando instalación inicial de la aplicación..."
-bash install.sh
-
-log "Servidor preparado y aplicación desplegada."
+log "Servidor preparado. Ejecuta install.sh para cada componente:"
+log "  bash /app/scripts/install.sh   # frontend"
+log "  bash /app/scripts/install.sh   # backend"
