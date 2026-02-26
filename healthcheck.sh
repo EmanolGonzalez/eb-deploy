@@ -6,6 +6,28 @@ set -e
 # Validates that the application is running and healthy after install/update.
 # =============================================================================
 
+COMPONENT="${1:-backend}"
+
+if [[ "$COMPONENT" == "frontend" ]]; then
+  FRONTEND_CURRENT_LINK="/app/frontend/current"
+  FRONTEND_INDEX_FILE="${FRONTEND_CURRENT_LINK}/dist/index.html"
+
+  echo "==> Checking frontend current symlink $FRONTEND_CURRENT_LINK"
+  if [[ ! -L "$FRONTEND_CURRENT_LINK" ]]; then
+    echo "Error: frontend current symlink not found." >&2
+    exit 1
+  fi
+
+  echo "==> Checking frontend artifact $FRONTEND_INDEX_FILE"
+  if [[ ! -f "$FRONTEND_INDEX_FILE" ]]; then
+    echo "Error: frontend index file not found in current release." >&2
+    exit 1
+  fi
+
+  echo "Healthcheck passed successfully"
+  exit 0
+fi
+
 APP_NAME="backend"
 PORT="${APP_PORT:-5000}"
 HEALTH_ENDPOINT="http://localhost:${PORT}/api/health"

@@ -42,19 +42,43 @@ select_component() {
 	COMPONENT="$ARROW_SELECTION"
 }
 
+parse_args() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--component)
+				COMPONENT="$2"
+				shift 2
+				;;
+			--version)
+				PREVIOUS_VERSION="$2"
+				shift 2
+				;;
+			*)
+				err "Unknown argument: $1"
+				exit 1
+				;;
+		esac
+	done
+}
+
 require_root
-select_component
+parse_args "$@"
+if [[ -z "$COMPONENT" ]]; then
+	select_component
+fi
 
 CURRENT_LINK="/app/${COMPONENT}/current"
 RELEASES_DIR="/app/releases/${COMPONENT}"
 
-mapfile -t VERSIONS < <(ls -1 "$RELEASES_DIR" | sort -V)
-if [[ ${#VERSIONS[@]} -eq 0 ]]; then
-	err "No versions available to rollback."
-	exit 1
+if [[ -z "$PREVIOUS_VERSION" ]]; then
+	mapfile -t VERSIONS < <(ls -1 "$RELEASES_DIR" | sort -V)
+	if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+		err "No versions available to rollback."
+		exit 1
+	fi
+	arrow_select "Select version to rollback:" "${VERSIONS[@]}"
+	PREVIOUS_VERSION="$ARROW_SELECTION"
 fi
-arrow_select "Select version to rollback:" "${VERSIONS[@]}"
-PREVIOUS_VERSION="$ARROW_SELECTION"
 
 PREVIOUS_RELEASE_DIR="${RELEASES_DIR}/${PREVIOUS_VERSION}"
 if [[ ! -d "$PREVIOUS_RELEASE_DIR" ]]; then
@@ -71,7 +95,7 @@ if [[ "$COMPONENT" == "backend" ]]; then
 fi
 
 log "Running healthcheck..."
-if ! bash "$(dirname "$0")/healthcheck.sh"; then
+if ! bash "$(dirname "$0")/healthcheck.sh" "$COMPONENT"; then
 	err "Healthcheck failed after rollback."
 	exit 1
 fi
