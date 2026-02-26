@@ -66,6 +66,17 @@ version_is_newer() {
 	[[ "$candidate" != "$current" ]] && [[ "$(printf '%s\n%s\n' "$current" "$candidate" | sort -V | tail -n1)" == "$candidate" ]]
 }
 
+version_exists_in_list() {
+	local target="$1"; shift
+	local values=("$@")
+	for value in "${values[@]}"; do
+		if [[ "$value" == "$target" ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
 list_versions() {
 	local url="${BASE_URL}?restype=container&comp=list&prefix=${COMPONENT}/&${SAS_TOKEN}"
 	log "Fetching versions for $COMPONENT..."
@@ -82,6 +93,7 @@ list_versions() {
 		err "No versions found."
 		exit 1
 	fi
+	ALL_VERSIONS=("${VERSIONS[@]}")
 	log "Versions found: ${VERSIONS[*]}"
 	# Detect current version
 	local current_link="/app/${COMPONENT}/current"
@@ -96,8 +108,27 @@ list_versions() {
 		done
 		VERSIONS=("${FILTERED_VERSIONS[@]}")
 		if [[ ${#VERSIONS[@]} -eq 0 ]]; then
-			err "No newer versions available."
-			exit 1
+			log "No newer versions available."
+			if version_exists_in_list "$CURRENT_VERSION" "${ALL_VERSIONS[@]}"; then
+				arrow_select "No hay versiones nuevas. ¿Qué deseas hacer?" "Reinstalar actual ($CURRENT_VERSION)" "Elegir cualquier versión" "Cancelar"
+			else
+				arrow_select "No hay versiones nuevas. ¿Qué deseas hacer?" "Elegir cualquier versión" "Cancelar"
+			fi
+
+			case "$ARROW_SELECTION" in
+				"Reinstalar actual ($CURRENT_VERSION)")
+					VERSIONS=("$CURRENT_VERSION")
+					;;
+				"Elegir cualquier versión")
+					VERSIONS=("${ALL_VERSIONS[@]}")
+					;;
+				"Cancelar")
+					log "Update cancelled by user."
+					exit 0
+					;;
+			esac
+			log "Versions available for selection: ${VERSIONS[*]}"
+			return
 		fi
 		log "Newer versions available: ${VERSIONS[*]}"
 	fi
