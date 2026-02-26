@@ -15,36 +15,21 @@ require_root() { [[ "$EUID" -ne 0 ]] && err "Must be run as root." && exit 1; }
 arrow_select() {
 	local prompt="$1"; shift
 	local options=("$@")
-	local selected=0
 	local num=${#options[@]}
-	local key k2 k3
+	local idx
 	echo "$prompt"
-	tput civis 2>/dev/null
-	_draw_menu() {
-		for i in "${!options[@]}"; do
-			[[ $i -eq $selected ]] \
-				&& echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
-				|| echo -e "    ${options[$i]}"
-		done
-	}
-	_draw_menu
-	while true; do
-		IFS= read -rsn1 key
-		if [[ $key == $'\x1b' ]]; then
-			IFS= read -rsn1 -t 0.1 k2
-			IFS= read -rsn1 -t 0.1 k3
-			case "${k2}${k3}" in
-				'[A'|'OA') ((selected > 0)) && ((selected--)) ;;
-				'[B'|'OB') ((selected < num - 1)) && ((selected++)) ;;
-			esac
-		elif [[ $key == '' ]]; then
-			break
-		fi
-		tput cuu "$num" 2>/dev/null
-		_draw_menu
+	echo "Escribe el número de la opción deseada y presiona Enter:"
+	for i in "${!options[@]}"; do
+		echo "  $((i+1))) ${options[$i]}"
 	done
-	tput cnorm 2>/dev/null
-	ARROW_SELECTION="${options[$selected]}"
+	while true; do
+		read -rp "Opción: " idx
+		if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= num )); then
+			ARROW_SELECTION="${options[$((idx-1))]}"
+			return
+		fi
+		err "Opción inválida. Introduce un número entre 1 y $num."
+	done
 }
 
 prompt_sas_token() {
