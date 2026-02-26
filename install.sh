@@ -80,6 +80,11 @@ prompt_sas_token() {
       err "SAS token is required."
       exit 1
     fi
+    if [[ "$SAS_TOKEN" != \?* ]]; then
+      err "SAS token must start with '?'. Got: '${SAS_TOKEN:0:1}...'"
+      exit 1
+    fi
+    log "SAS token received: ${#SAS_TOKEN} characters (...${SAS_TOKEN: -6})"
   fi
 }
 
