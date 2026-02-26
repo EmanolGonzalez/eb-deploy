@@ -15,31 +15,31 @@ arrow_select() {
   local options=("$@")
   local selected=0
   local num=${#options[@]}
-  local key
+  local key k2 k3
   echo "$prompt"
   tput civis 2>/dev/null
-  for i in "${!options[@]}"; do
-    [[ $i -eq $selected ]] \
-      && echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
-      || echo -e "    ${options[$i]}"
-  done
-  while true; do
-    IFS= read -rsn1 key
-    if [[ $key == $'\x1b' ]]; then
-      read -rsn2 -t 0.1 key
-      case $key in
-        '[A') ((selected > 0)) && ((selected--)) ;;
-        '[B') ((selected < num - 1)) && ((selected++)) ;;
-      esac
-    elif [[ $key == '' ]]; then
-      break
-    fi
-    tput cuu "$num" 2>/dev/null
+  _draw_menu() {
     for i in "${!options[@]}"; do
       [[ $i -eq $selected ]] \
         && echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
         || echo -e "    ${options[$i]}"
     done
+  }
+  _draw_menu
+  while true; do
+    IFS= read -rsn1 key
+    if [[ $key == $'\x1b' ]]; then
+      IFS= read -rsn1 -t 0.1 k2
+      IFS= read -rsn1 -t 0.1 k3
+      case "${k2}${k3}" in
+        '[A'|'OA') ((selected > 0)) && ((selected--)) ;;
+        '[B'|'OB') ((selected < num - 1)) && ((selected++)) ;;
+      esac
+    elif [[ $key == '' ]]; then
+      break
+    fi
+    tput cuu "$num" 2>/dev/null
+    _draw_menu
   done
   tput cnorm 2>/dev/null
   ARROW_SELECTION="${options[$selected]}"
@@ -74,14 +74,18 @@ prompt_sas_token() {
   if [[ -n "$AZURE_SAS_TOKEN" ]]; then
     SAS_TOKEN="$AZURE_SAS_TOKEN"
   else
-    read -rsp "Enter Azure SAS token (starts with ?): " SAS_TOKEN
+    read -rsp "Enter Azure SAS token or full SAS URL: " SAS_TOKEN
     echo
     if [[ -z "$SAS_TOKEN" ]]; then
       err "SAS token is required."
       exit 1
     fi
+    # Accept full SAS URL — extract only the query string
+    if [[ "$SAS_TOKEN" == https://* ]]; then
+      SAS_TOKEN="?${SAS_TOKEN#*\?}"
+    fi
     if [[ "$SAS_TOKEN" != \?* ]]; then
-      err "SAS token must start with '?'. Got: '${SAS_TOKEN:0:1}...'"
+      err "Could not parse SAS token. Paste the full SAS URL or the query string starting with '?'."
       exit 1
     fi
     log "SAS token received: ${#SAS_TOKEN} characters (...${SAS_TOKEN: -6})"
@@ -99,7 +103,10 @@ list_versions() {
   log "Fetching available versions for $COMPONENT..."
   local xml
   if ! xml=$(curl -fsSL "$url"); then
-    err "Failed to list blobs. Check SAS token and network."
+    err "Failed to list blobs (HTTP error)."
+    err "Verify: 1) SAS token is valid and not expired"
+    err "        2) Token has 'Read' + 'List' permissions on the container"
+    err "        3) Storage account '${STORAGE_ACCOUNT}' and container '${CONTAINER_NAME}' exist"
     exit 1
   fi
   VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -V))
