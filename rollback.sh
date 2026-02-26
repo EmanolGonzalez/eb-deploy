@@ -10,7 +10,12 @@ source "$CONFIG_FILE"
 
 log() { echo -e "\033[1;34m==> $*\033[0m"; }
 err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
-require_root() { [[ "$EUID" -ne 0 ]] && err "Must be run as root." && exit 1; }
+require_root() {
+	if [[ "$EUID" -ne 0 ]]; then
+		err "Must be run as root."
+		exit 1
+	fi
+}
 
 arrow_select() {
 	local prompt="$1"; shift
