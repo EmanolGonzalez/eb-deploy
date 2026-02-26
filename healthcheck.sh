@@ -8,7 +8,7 @@ set -e
 
 APP_NAME="backend"
 PORT="${APP_PORT:-5000}"
-HEALTH_ENDPOINT="http://localhost:${PORT}/health"
+HEALTH_ENDPOINT="http://localhost:${PORT}/api/health"
 
 # ----------------------------------------------------------------------------
 # Check if the systemd service is active
