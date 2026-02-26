@@ -32,8 +32,22 @@ list_versions() {
 	local url="${BASE_URL}/${COMPONENT}?restype=container&comp=list${SAS_TOKEN}"
 	log "Fetching versions for $COMPONENT..."
 	local xml; xml=$(curl -fsSL "$url") || { err "Failed to list blobs."; exit 1; }
-	VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -u))
+	VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -V))
 	[[ ${#VERSIONS[@]} -eq 0 ]] && err "No versions found." && exit 1
+	# Detect current version
+	local current_link="/app/${COMPONENT}/current"
+	if [[ -L "$current_link" ]]; then
+		CURRENT_VERSION=$(basename $(readlink "$current_link"))
+		log "Current installed version: $CURRENT_VERSION"
+		FILTERED_VERSIONS=()
+		for v in "${VERSIONS[@]}"; do
+			if [[ "$v" > "$CURRENT_VERSION" ]]; then
+				FILTERED_VERSIONS+=("$v")
+			fi
+		done
+		VERSIONS=("${FILTERED_VERSIONS[@]}")
+		[[ ${#VERSIONS[@]} -eq 0 ]] && err "No newer versions available." && exit 1
+	fi
 }
 
 select_version() {

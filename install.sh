@@ -73,11 +73,28 @@ list_versions() {
     err "Failed to list blobs. Check SAS token and network."
     exit 1
   fi
-  # Parse XML for unique version directories
-  VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -u))
+  VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -V))
   if [[ ${#VERSIONS[@]} -eq 0 ]]; then
     err "No versions found for $COMPONENT."
     exit 1
+  fi
+  # Detect current version
+  local current_link="${INSTALL_BASE}/${COMPONENT}/current"
+  if [[ -L "$current_link" ]]; then
+    CURRENT_VERSION=$(basename $(readlink "$current_link"))
+    log "Current installed version: $CURRENT_VERSION"
+    # Filter only versions greater than current
+    FILTERED_VERSIONS=()
+    for v in "${VERSIONS[@]}"; do
+      if [[ "$v" > "$CURRENT_VERSION" ]]; then
+        FILTERED_VERSIONS+=("$v")
+      fi
+    done
+    VERSIONS=("${FILTERED_VERSIONS[@]}")
+    if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+      err "No newer versions available."
+      exit 1
+    fi
   fi
 }
 
