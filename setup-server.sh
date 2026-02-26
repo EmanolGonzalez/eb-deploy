@@ -113,6 +113,21 @@ EOF
   systemctl enable backend
 fi
 
+# 10. Configuración de Azure Storage
+CONFIG_FILE="/app/config/storage.conf"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  log "Configurando acceso a Azure Blob Storage..."
+  read -rp "Enter Azure Storage Account: " STORAGE_ACCOUNT
+  read -rp "Enter Azure Container Name: " CONTAINER_NAME
+  BASE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}"
+  cat > "$CONFIG_FILE" <<EOF
+STORAGE_ACCOUNT="$STORAGE_ACCOUNT"
+CONTAINER_NAME="$CONTAINER_NAME"
+BASE_URL="$BASE_URL"
+EOF
+  log "Configuración guardada en $CONFIG_FILE."
+fi
+
 log "Servidor preparado. Ejecuta install.sh para cada componente:"
 log "  bash /app/scripts/install.sh   # frontend"
 log "  bash /app/scripts/install.sh   # backend"

@@ -74,20 +74,14 @@ prompt_sas_token() {
   if [[ -n "$AZURE_SAS_TOKEN" ]]; then
     SAS_TOKEN="$AZURE_SAS_TOKEN"
   else
-    read -rsp "Enter Azure SAS token or full SAS URL: " SAS_TOKEN
+    read -rsp "Enter Azure SAS token (e.g. sv=2024-...&sig=...): " SAS_TOKEN
     echo
     if [[ -z "$SAS_TOKEN" ]]; then
       err "SAS token is required."
       exit 1
     fi
-    # Accept full SAS URL — extract only the query string
-    if [[ "$SAS_TOKEN" == https://* ]]; then
-      SAS_TOKEN="?${SAS_TOKEN#*\?}"
-    fi
-    if [[ "$SAS_TOKEN" != \?* ]]; then
-      err "Could not parse SAS token. Paste the full SAS URL or the query string starting with '?'."
-      exit 1
-    fi
+    # Normalize: strip leading '?' if present
+    SAS_TOKEN="${SAS_TOKEN#\?}"
     log "SAS token received: ${#SAS_TOKEN} characters (...${SAS_TOKEN: -6})"
   fi
 }
@@ -99,7 +93,7 @@ select_component() {
 
 list_versions() {
   # List available versions in Azure Blob Storage for the selected component
-  local url="${BASE_URL}?restype=container&comp=list&prefix=${COMPONENT}/&${SAS_TOKEN#?}"
+  local url="${BASE_URL}?restype=container&comp=list&prefix=${COMPONENT}/&${SAS_TOKEN}"
   log "Fetching available versions for $COMPONENT..."
   local xml
   if ! xml=$(curl -fsSL "$url"); then
@@ -141,7 +135,7 @@ select_version() {
 }
 
 download_and_extract() {
-  local archive_url="${BASE_URL}/${COMPONENT}/${VERSION}/app.rar${SAS_TOKEN}"
+  local archive_url="${BASE_URL}/${COMPONENT}/${VERSION}/app.rar?${SAS_TOKEN}"
   local releases_dir="${INSTALL_BASE}/releases/${COMPONENT}"
   local release_dir="${releases_dir}/${VERSION}"
   local tmp_archive="/tmp/${COMPONENT}-${VERSION}.rar"
