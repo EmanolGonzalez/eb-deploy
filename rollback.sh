@@ -12,11 +12,44 @@ log() { echo -e "\033[1;34m==> $*\033[0m"; }
 err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 require_root() { [[ "$EUID" -ne 0 ]] && err "Must be run as root." && exit 1; }
 
-select_component() {
-	local PS3="Select component: "
-	select comp in frontend backend; do
-		case $comp in frontend|backend) COMPONENT="$comp"; break;; *) err "Invalid.";; esac
+arrow_select() {
+	local prompt="$1"; shift
+	local options=("$@")
+	local selected=0
+	local num=${#options[@]}
+	local key
+	echo "$prompt"
+	tput civis 2>/dev/null
+	for i in "${!options[@]}"; do
+		[[ $i -eq $selected ]] \
+			&& echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
+			|| echo -e "    ${options[$i]}"
 	done
+	while true; do
+		IFS= read -rsn1 key
+		if [[ $key == $'\x1b' ]]; then
+			read -rsn2 -t 0.1 key
+			case $key in
+				'[A') ((selected > 0)) && ((selected--)) ;;
+				'[B') ((selected < num - 1)) && ((selected++)) ;;
+			esac
+		elif [[ $key == '' ]]; then
+			break
+		fi
+		tput cuu "$num" 2>/dev/null
+		for i in "${!options[@]}"; do
+			[[ $i -eq $selected ]] \
+				&& echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
+				|| echo -e "    ${options[$i]}"
+		done
+	done
+	tput cnorm 2>/dev/null
+	ARROW_SELECTION="${options[$selected]}"
+}
+
+select_component() {
+	arrow_select "Select component:" frontend backend
+	COMPONENT="$ARROW_SELECTION"
 }
 
 require_root
@@ -25,15 +58,9 @@ select_component
 CURRENT_LINK="/app/${COMPONENT}/current"
 RELEASES_DIR="/app/releases/${COMPONENT}"
 
-log "Installed versions:"
 mapfile -t VERSIONS < <(ls -1 "$RELEASES_DIR" | sort)
-for i in "${!VERSIONS[@]}"; do echo "$((i+1))) ${VERSIONS[$i]}"; done
-
-while true; do
-	read -rp "Select version to rollback: " idx
-	[[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= ${#VERSIONS[@]} )) && PREVIOUS_VERSION="${VERSIONS[$((idx-1))]}" && break
-	err "Invalid selection."
-done
+arrow_select "Select version to rollback:" "${VERSIONS[@]}"
+PREVIOUS_VERSION="$ARROW_SELECTION"
 
 PREVIOUS_RELEASE_DIR="${RELEASES_DIR}/${PREVIOUS_VERSION}"
 [[ ! -d "$PREVIOUS_RELEASE_DIR" ]] && err "Release directory not found." && exit 1
