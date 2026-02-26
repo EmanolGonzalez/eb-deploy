@@ -24,7 +24,7 @@ Nginx :80
    ├── /        → archivos estáticos  /app/releases/frontend/current
    └── /api     → proxy               http://127.0.0.1:5000
 
-Backend .NET (systemd: backend)
+Backend .NET 9 (systemd: backend)
    └── escucha en :5000 (solo localhost)
 ```
 

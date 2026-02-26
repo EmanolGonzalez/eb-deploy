@@ -31,14 +31,15 @@ if ! command -v node >/dev/null || [[ $(node -v) != v20* ]]; then
   apt install -y nodejs
 fi
 
-# 4. Instalar .NET 8 SDK
+# 4. Instalar .NET 9 SDK
 if ! command -v dotnet >/dev/null || ! dotnet --list-sdks | grep -q 9.0; then
-  log ".NET 9 no encontrado. Instalando..."
-  wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-  dpkg -i packages-microsoft-prod.deb
-  apt update
-  apt install -y dotnet-sdk-8.0
-  rm -f packages-microsoft-prod.deb
+  log "Instalando .NET 9 SDK..."
+  curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+  chmod +x /tmp/dotnet-install.sh
+  /tmp/dotnet-install.sh --channel 9.0 --install-dir /usr/share/dotnet
+  ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
+  rm -f /tmp/dotnet-install.sh
+  log ".NET 9 instalado: $(dotnet --version)"
 fi
 
 # 5. Habilitar y arrancar nginx
