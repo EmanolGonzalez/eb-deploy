@@ -32,8 +32,8 @@ if ! command -v node >/dev/null || [[ $(node -v) != v20* ]]; then
 fi
 
 # 4. Instalar .NET 8 SDK
-if ! command -v dotnet >/dev/null || ! dotnet --list-sdks | grep -q 8.0; then
-  log ".NET 8 no encontrado. Instalando..."
+if ! command -v dotnet >/dev/null || ! dotnet --list-sdks | grep -q 9.0; then
+  log ".NET 9 no encontrado. Instalando..."
   wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
   dpkg -i packages-microsoft-prod.deb
   apt update
