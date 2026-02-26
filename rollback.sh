@@ -17,31 +17,31 @@ arrow_select() {
 	local options=("$@")
 	local selected=0
 	local num=${#options[@]}
-	local key
+	local key k2 k3
 	echo "$prompt"
 	tput civis 2>/dev/null
-	for i in "${!options[@]}"; do
-		[[ $i -eq $selected ]] \
-			&& echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
-			|| echo -e "    ${options[$i]}"
-	done
-	while true; do
-		IFS= read -rsn1 key
-		if [[ $key == $'\x1b' ]]; then
-			read -rsn2 -t 0.1 key
-			case $key in
-				'[A') ((selected > 0)) && ((selected--)) ;;
-				'[B') ((selected < num - 1)) && ((selected++)) ;;
-			esac
-		elif [[ $key == '' ]]; then
-			break
-		fi
-		tput cuu "$num" 2>/dev/null
+	_draw_menu() {
 		for i in "${!options[@]}"; do
 			[[ $i -eq $selected ]] \
 				&& echo -e "  \033[1;36m>\033[0m \033[7m ${options[$i]} \033[0m" \
 				|| echo -e "    ${options[$i]}"
 		done
+	}
+	_draw_menu
+	while true; do
+		IFS= read -rsn1 key
+		if [[ $key == $'\x1b' ]]; then
+			IFS= read -rsn1 -t 0.1 k2
+			IFS= read -rsn1 -t 0.1 k3
+			case "${k2}${k3}" in
+				'[A'|'OA') ((selected > 0)) && ((selected--)) ;;
+				'[B'|'OB') ((selected < num - 1)) && ((selected++)) ;;
+			esac
+		elif [[ $key == '' ]]; then
+			break
+		fi
+		tput cuu "$num" 2>/dev/null
+		_draw_menu
 	done
 	tput cnorm 2>/dev/null
 	ARROW_SELECTION="${options[$selected]}"

@@ -81,7 +81,7 @@ list_versions() {
 		err "        3) Storage account and container exist"
 		exit 1
 	fi
-	VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -V))
+	VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -V))
 	[[ ${#VERSIONS[@]} -eq 0 ]] && err "No versions found." && exit 1
 	# Detect current version
 	local current_link="/app/${COMPONENT}/current"

@@ -109,9 +109,10 @@ list_versions() {
     err "        3) Storage account '${STORAGE_ACCOUNT}' and container '${CONTAINER_NAME}' exist"
     exit 1
   fi
-  VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[0-9.]+(?=/app\.rar)</Name>" | sort -V))
+  VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -V))
   if [[ ${#VERSIONS[@]} -eq 0 ]]; then
     err "No versions found for $COMPONENT."
+    err "XML response (first 500 chars): ${xml:0:500}"
     exit 1
   fi
   # Detect current version
