@@ -1,9 +1,3 @@
-unrar x -y "$TMP_ARCHIVE" "$RELEASE_DIR/"
-echo "==> Writing systemd service to ${SERVICE_FILE}"
-echo "==> Enabling and starting ${APP_NAME} service"
-systemctl enable "$APP_NAME"
-systemctl start "$APP_NAME"
-
 #!/usr/bin/env bash
 set -e
 

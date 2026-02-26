@@ -50,15 +50,15 @@ log "Creando estructura de carpetas en /app..."
 mkdir -p /app/scripts /app/releases /app/config
 
 # 7. Descargar fetch-all.sh y scripts de despliegue
+read -rp "Introduce la URL base raw de GitHub (ej: https://raw.githubusercontent.com/usuario/repo/main): " SCRIPTS_BASE_URL
 cd /app/scripts
 if [[ ! -f fetch-all.sh ]]; then
   log "Descargando fetch-all.sh..."
-  read -rp "Introduce la URL raw de fetch-all.sh: " FETCH_URL
-  wget -O fetch-all.sh "$FETCH_URL"
+  wget -O fetch-all.sh "${SCRIPTS_BASE_URL}/fetch-all.sh"
   chmod +x fetch-all.sh
 fi
 log "Descargando scripts de despliegue..."
-bash fetch-all.sh
+bash fetch-all.sh "$SCRIPTS_BASE_URL"
 
 # 8. Configuración de Nginx (plantilla básica, personalizar según necesidad)
 if [[ ! -f /etc/nginx/sites-available/app ]]; then

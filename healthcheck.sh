@@ -6,9 +6,9 @@ set -e
 # Validates that the application is running and healthy after install/update.
 # =============================================================================
 
-APP_NAME="eb-app-code"
-PORT="3000"
-HEALTH_ENDPOINT="http://localhost:3000/health"
+APP_NAME="backend"
+PORT="${APP_PORT:-5000}"
+HEALTH_ENDPOINT="http://localhost:${PORT}/health"
 
 # ----------------------------------------------------------------------------
 # Check if the systemd service is active
