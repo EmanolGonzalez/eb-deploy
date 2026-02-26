@@ -48,7 +48,11 @@ select_component
 CURRENT_LINK="/app/${COMPONENT}/current"
 RELEASES_DIR="/app/releases/${COMPONENT}"
 
-mapfile -t VERSIONS < <(ls -1 "$RELEASES_DIR" | sort)
+mapfile -t VERSIONS < <(ls -1 "$RELEASES_DIR" | sort -V)
+if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+	err "No versions available to rollback."
+	exit 1
+fi
 arrow_select "Select version to rollback:" "${VERSIONS[@]}"
 PREVIOUS_VERSION="$ARROW_SELECTION"
 

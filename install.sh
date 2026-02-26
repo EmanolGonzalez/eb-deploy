@@ -76,6 +76,12 @@ select_component() {
   COMPONENT="$ARROW_SELECTION"
 }
 
+version_is_newer() {
+  local candidate="$1"
+  local current="$2"
+  [[ "$candidate" != "$current" ]] && [[ "$(printf '%s\n%s\n' "$current" "$candidate" | sort -V | tail -n1)" == "$candidate" ]]
+}
+
 list_versions() {
   # List available versions in Azure Blob Storage for the selected component
   local url="${BASE_URL}?restype=container&comp=list&prefix=${COMPONENT}/&${SAS_TOKEN}"
@@ -88,21 +94,22 @@ list_versions() {
     err "        3) Storage account '${STORAGE_ACCOUNT}' and container '${CONTAINER_NAME}' exist"
     exit 1
   fi
-  VERSIONS=($(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -V))
+  mapfile -t VERSIONS < <(echo "$xml" | grep -oP '<Name>'"${COMPONENT}/\K[^/]+(?=/app\.rar)" | sort -Vu)
   if [[ ${#VERSIONS[@]} -eq 0 ]]; then
     err "No versions found for $COMPONENT."
     err "XML response (first 500 chars): ${xml:0:500}"
     exit 1
   fi
+  log "Versions found: ${VERSIONS[*]}"
   # Detect current version
   local current_link="${INSTALL_BASE}/${COMPONENT}/current"
   if [[ -L "$current_link" ]]; then
-    CURRENT_VERSION=$(basename $(readlink "$current_link"))
+    CURRENT_VERSION=$(basename "$(readlink "$current_link")")
     log "Current installed version: $CURRENT_VERSION"
     # Filter only versions greater than current
     FILTERED_VERSIONS=()
     for v in "${VERSIONS[@]}"; do
-      if [[ "$v" > "$CURRENT_VERSION" ]]; then
+      if version_is_newer "$v" "$CURRENT_VERSION"; then
         FILTERED_VERSIONS+=("$v")
       fi
     done
@@ -111,6 +118,7 @@ list_versions() {
       err "No newer versions available."
       exit 1
     fi
+    log "Newer versions available: ${VERSIONS[*]}"
   fi
 }
 
