@@ -6,6 +6,10 @@ set -e
 # Supports frontend/backend, dynamic version listing, secure SAS token handling
 # =============================================================================
 
+# ----------------------------- UTILITY FUNCTIONS -----------------------------
+log() { echo -e "\033[1;34m==> $*\033[0m"; }
+err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
+
 CONFIG_FILE="/app/config/storage.conf"
 if [[ ! -f "$CONFIG_FILE" ]]; then
   log "Configuration file $CONFIG_FILE not found."
@@ -23,10 +27,6 @@ else
   source "$CONFIG_FILE"
 fi
 INSTALL_BASE="/app"
-
-# ----------------------------- UTILITY FUNCTIONS -----------------------------
-log() { echo -e "\033[1;34m==> $*\033[0m"; }
-err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 
 require_root() {
   if [[ "$EUID" -ne 0 ]]; then
