@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+BACKEND_HEALTH_ENDPOINT_FILE="/app/config/backend-health-endpoint.txt"
+
 OUTPUT_FORMAT="text"
 if [[ "${1:-}" == "--json" ]]; then
   OUTPUT_FORMAT="json"
@@ -50,6 +52,16 @@ NGINX_RUNNING=false
 BACKEND_SERVICE_OK=false
 BACKEND_PORT_OK=false
 BACKEND_HEALTH_OK=false
+
+load_backend_health_endpoint_if_exists() {
+  if [[ -f "$BACKEND_HEALTH_ENDPOINT_FILE" ]]; then
+    local configured
+    configured="$(cat "$BACKEND_HEALTH_ENDPOINT_FILE")"
+    if [[ -n "$configured" ]]; then
+      BACKEND_HEALTH_ENDPOINT="$configured"
+    fi
+  fi
+}
 
 check_symlink_version() {
   local component="$1"
@@ -167,6 +179,7 @@ check_frontend_running() {
 }
 
 info "Deployment status"
+load_backend_health_endpoint_if_exists
 check_symlink_version "frontend"
 check_symlink_version "backend"
 check_frontend_running
