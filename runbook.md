@@ -96,6 +96,17 @@ bash status.sh
 bash status.sh --json
 ```
 
+### Configurar / cambiar cadena de conexión (backend)
+```bash
+bash set-db-connection.sh
+```
+
+Notas:
+- Guarda la cadena en `/app/config/db-connection.txt`.
+- El cambio se aplica al backend actual y ofrece reiniciar el servicio.
+- En próximos `install.sh`/`update.sh` del backend, la cadena se vuelve a aplicar automáticamente en `appsettings.json`.
+- `appsettings.Development.json` no se toca.
+
 ## Operación de servicios y logs
 
 ```bash

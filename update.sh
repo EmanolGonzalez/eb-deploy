@@ -2,6 +2,7 @@
 set -e
 
 CONFIG_FILE="/app/config/storage.conf"
+DB_CONNECTION_FILE="/app/config/db-connection.txt"
 if [[ ! -f "$CONFIG_FILE" ]]; then
 	echo "Error: Configuration file $CONFIG_FILE not found." >&2
 	exit 1
@@ -10,6 +11,43 @@ source "$CONFIG_FILE"
 
 log() { echo -e "\033[1;34m==> $*\033[0m"; }
 err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
+
+load_db_connection_if_exists() {
+	if [[ -f "$DB_CONNECTION_FILE" ]]; then
+		DB_CONNECTION_STRING="$(cat "$DB_CONNECTION_FILE")"
+		if [[ -n "$DB_CONNECTION_STRING" ]]; then
+			log "DB connection string loaded from $DB_CONNECTION_FILE"
+		fi
+	fi
+}
+
+escape_for_sed_replacement() {
+	local input="$1"
+	input="${input//\\/\\\\}"
+	input="${input//&/\\&}"
+	printf '%s' "$input"
+}
+
+apply_connection_string_to_file() {
+	local target_file="$1"
+	local connection_string="$2"
+
+	if [[ ! -f "$target_file" ]]; then
+		err "File not found: $target_file"
+		exit 1
+	fi
+
+	if ! grep -q '"DefaultConnection"' "$target_file"; then
+		err "DefaultConnection key not found in: $target_file"
+		exit 1
+	fi
+
+	local escaped
+	escaped="$(escape_for_sed_replacement "$connection_string")"
+	sed -i -E "s#(\"DefaultConnection\"[[:space:]]*:[[:space:]]*\").*(\")#\\1${escaped}\\2#" "$target_file"
+	log "Connection string applied to $target_file"
+}
+
 require_root() {
 	if [[ "$EUID" -ne 0 ]]; then
 		err "Must be run as root."
@@ -168,8 +206,23 @@ restart_service_if_backend() {
 	fi
 }
 
+apply_db_connection_if_backend() {
+	if [[ "$COMPONENT" != "backend" ]]; then
+		return
+	fi
+
+	if [[ -z "${DB_CONNECTION_STRING:-}" ]]; then
+		log "DB connection string file not found ($DB_CONNECTION_FILE). Skipping appsettings.json update."
+		return
+	fi
+
+	local backend_appsettings="${RELEASE_DIR}/publish/appsettings.json"
+	apply_connection_string_to_file "$backend_appsettings" "$DB_CONNECTION_STRING"
+}
+
 require_root
 prompt_sas_token
+load_db_connection_if_exists
 select_component
 list_versions
 select_version
@@ -184,6 +237,7 @@ if [[ -L "$CURRENT_LINK" ]]; then
 fi
 
 download_and_extract
+	apply_db_connection_if_backend
 update_symlink
 restart_service_if_backend
 
