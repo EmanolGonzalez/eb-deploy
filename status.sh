@@ -80,6 +80,8 @@ check_backend_running() {
   local backend_health_ok=false
   local backend_health_url=""
   local backend_health_status=""
+  local port_ok=false
+  local attempt
   local health_candidates=(
     "${BACKEND_HEALTH_ENDPOINT:-http://localhost:5000/api/health}"
     "http://localhost:5000/health"
@@ -95,7 +97,15 @@ check_backend_running() {
     EXIT_CODE=1
   fi
 
-  if ss -tulnp | grep -q ':5000'; then
+  for attempt in 1 2 3 4 5; do
+    if ss -tulnp | grep -q ':5000'; then
+      port_ok=true
+      break
+    fi
+    sleep 2
+  done
+
+  if [[ "$port_ok" == true ]]; then
     BACKEND_PORT_OK=true
     ok "backend port 5000: listening"
   else

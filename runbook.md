@@ -101,9 +101,15 @@ bash status.sh --json
 bash set-db-connection.sh
 ```
 
+### Consola técnica (menú)
+```bash
+bash ops-menu.sh
+```
+
 Notas:
 - Guarda la cadena en `/app/config/db-connection.txt`.
 - El cambio se aplica al backend actual y ofrece reiniciar el servicio.
+- `install.sh`, `update.sh` y `rollback.sh` preguntan en backend si deseas usar la cadena guardada o ingresar otra.
 - En próximos `install.sh`/`update.sh` del backend, la cadena se vuelve a aplicar automáticamente en `appsettings.json`.
 - `appsettings.Development.json` no se toca.
 

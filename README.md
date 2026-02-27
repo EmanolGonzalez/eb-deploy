@@ -13,6 +13,7 @@ Scripts de despliegue para la aplicación. Los artefactos (`.rar`) se almacenan 
 ├── healthcheck.sh    - Verifica que la aplicación está sana
 ├── status.sh         - Muestra versión desplegada y estado de frontend/backend
 ├── set-db-connection.sh - Configura ConnectionStrings:DefaultConnection para backend
+├── ops-menu.sh       - Consola interactiva para técnicos (menú)
 └── runbook.md        - Paso a paso operacional
 ```
 
@@ -108,10 +109,14 @@ bash status.sh --json
 
 # Configurar/cambiar la cadena de conexión del backend (persistente)
 bash set-db-connection.sh
+
+# Consola técnica con menú
+bash ops-menu.sh
 ```
 
 Notas de cadena de conexión:
 - `set-db-connection.sh` guarda la cadena en `/app/config/db-connection.txt`.
+- `install.sh`, `update.sh` y `rollback.sh` preguntan en backend si quieres usar la cadena guardada o ingresar otra.
 - `install.sh` y `update.sh` aplican automáticamente esa cadena a `publish/appsettings.json` cuando el componente es backend.
 - `appsettings.Development.json` no se modifica.
 
