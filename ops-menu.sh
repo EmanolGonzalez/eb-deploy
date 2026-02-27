@@ -53,14 +53,12 @@ refresh_scripts() {
     return 1
   fi
 
-  if [[ ! -f "$fetch_script" ]]; then
-    log "fetch-all.sh no existe. Descargando..."
-    wget -q -O "$fetch_script" "$base_url/fetch-all.sh" || {
-      err "No se pudo descargar fetch-all.sh desde $base_url"
-      return 1
-    }
-    chmod +x "$fetch_script"
-  fi
+  log "Actualizando fetch-all.sh..."
+  wget -q -O "$fetch_script" "$base_url/fetch-all.sh" || {
+    err "No se pudo descargar fetch-all.sh desde $base_url"
+    return 1
+  }
+  chmod +x "$fetch_script"
 
   bash "$fetch_script" "$base_url"
   log "Scripts actualizados."
