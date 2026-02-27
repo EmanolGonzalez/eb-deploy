@@ -9,6 +9,20 @@ set -e
 log() { echo -e "\033[1;34m==> $*\033[0m"; }
 err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 
+download_scripts_directly() {
+  local base_url="$1"
+  local scripts=(ops-menu.sh install.sh update.sh rollback.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh setup-server.sh)
+
+  log "Descargando scripts directamente (fallback)..."
+  for script in "${scripts[@]}"; do
+    wget -q -O "$script" "$base_url/$script" || {
+      err "No se pudo descargar $script desde $base_url"
+      return 1
+    }
+    chmod +x "$script"
+  done
+}
+
 require_root() {
   if [[ "$EUID" -ne 0 ]]; then
     err "Este script debe ejecutarse como root."
@@ -53,13 +67,23 @@ mkdir -p /app/scripts /app/releases /app/config
 # 7. Descargar fetch-all.sh y scripts de despliegue
 read -rp "Introduce la URL base raw de GitHub (ej: https://raw.githubusercontent.com/usuario/repo/main): " SCRIPTS_BASE_URL
 cd /app/scripts
-if [[ ! -f fetch-all.sh ]]; then
-  log "Descargando fetch-all.sh..."
-  wget -O fetch-all.sh "${SCRIPTS_BASE_URL}/fetch-all.sh"
+
+FETCH_ALL_OK=0
+if wget -q -O fetch-all.sh "${SCRIPTS_BASE_URL}/fetch-all.sh"; then
   chmod +x fetch-all.sh
+  log "Descargando scripts con fetch-all.sh (ops-menu.sh primero)..."
+  if bash fetch-all.sh "$SCRIPTS_BASE_URL"; then
+    FETCH_ALL_OK=1
+  else
+    err "fetch-all.sh falló. Se usará descarga directa."
+  fi
+else
+  err "No se pudo descargar fetch-all.sh. Se usará descarga directa."
 fi
-log "Descargando scripts de despliegue..."
-bash fetch-all.sh "$SCRIPTS_BASE_URL"
+
+if [[ "$FETCH_ALL_OK" -ne 1 ]]; then
+  download_scripts_directly "$SCRIPTS_BASE_URL"
+fi
 
 # 8. Configuración de Nginx (plantilla básica, personalizar según necesidad)
 if [[ ! -f /etc/nginx/sites-available/app ]]; then
@@ -129,6 +153,8 @@ EOF
   log "Configuración guardada en $CONFIG_FILE."
 fi
 
-log "Servidor preparado. Ejecuta install.sh para cada componente:"
+log "Servidor preparado. Inicia con el menú técnico:"
+log "  bash /app/scripts/ops-menu.sh"
+log "Si prefieres flujo manual, ejecuta install.sh para cada componente:"
 log "  bash /app/scripts/install.sh   # frontend"
 log "  bash /app/scripts/install.sh   # backend"
