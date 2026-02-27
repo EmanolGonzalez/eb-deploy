@@ -64,7 +64,7 @@ bash fetch-all.sh "$SCRIPTS_BASE_URL"
 # 8. Configuración de Nginx (plantilla básica, personalizar según necesidad)
 if [[ ! -f /etc/nginx/sites-available/app ]]; then
   log "Configurando Nginx para servir frontend y backend..."
-  cat > /etc/nginx/sites-available/app <<EOF
+  cat > /etc/nginx/sites-available/app <<'EOF'
 server {
     listen 80;
     server_name _;
