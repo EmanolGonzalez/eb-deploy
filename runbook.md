@@ -35,16 +35,21 @@ Ejemplo:
    mkdir -p /app/scripts
    cd /app/scripts
    ```
-2. Descarga `setup-server.sh`:
+2. Descarga `ops-menu.sh` (entrada principal):
    ```bash
-   wget -O setup-server.sh https://raw.githubusercontent.com/<usuario>/<repo>/main/setup-server.sh
-   chmod +x setup-server.sh
+   wget -O ops-menu.sh https://raw.githubusercontent.com/<usuario>/<repo>/main/ops-menu.sh
+   chmod +x ops-menu.sh
    ```
-3. Ejecuta el setup (instala dependencias y configura servicios):
+3. Ejecuta el menú y usa **Actualizar scripts** para traer todo:
+   ```bash
+   bash ops-menu.sh
+   ```
+   El menú descargará `fetch-all.sh` si no existe y luego traerá todos los scripts.
+4. Ejecuta el setup (instala dependencias y configura servicios):
    ```bash
    bash setup-server.sh
    ```
-4. Instala cada componente por separado:
+5. Instala cada componente por separado:
    ```bash
    bash install.sh   # selecciona frontend
    bash install.sh   # selecciona backend
@@ -101,10 +106,17 @@ bash status.sh --json
 bash set-db-connection.sh
 ```
 
+### Configurar endpoint health backend (status)
+```bash
+bash set-health-endpoint.sh
+```
+
 ### Consola técnica (menú)
 ```bash
 bash ops-menu.sh
 ```
+
+Dentro del menú puedes usar **Actualizar scripts** para ejecutar `fetch-all.sh` y traer todos los scripts desde la URL base raw.
 
 Notas:
 - Guarda la cadena en `/app/config/db-connection.txt`.
@@ -112,6 +124,8 @@ Notas:
 - `install.sh`, `update.sh` y `rollback.sh` preguntan en backend si deseas usar la cadena guardada o ingresar otra.
 - En próximos `install.sh`/`update.sh` del backend, la cadena se vuelve a aplicar automáticamente en `appsettings.json`.
 - `appsettings.Development.json` no se toca.
+- `set-health-endpoint.sh` guarda la URL en `/app/config/backend-health-endpoint.txt`.
+- `status.sh` usa esa URL como endpoint preferido para validar el backend.
 
 ## Operación de servicios y logs
 

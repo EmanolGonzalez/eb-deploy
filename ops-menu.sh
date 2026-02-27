@@ -43,6 +43,29 @@ run_script() {
   bash "$SCRIPT_DIR/$script_name" "$@"
 }
 
+refresh_scripts() {
+  local fetch_script="$SCRIPT_DIR/fetch-all.sh"
+  local base_url=""
+
+  read -rp "URL base raw de GitHub: " base_url
+  if [[ -z "$base_url" ]]; then
+    err "La URL base es obligatoria."
+    return 1
+  fi
+
+  if [[ ! -f "$fetch_script" ]]; then
+    log "fetch-all.sh no existe. Descargando..."
+    wget -q -O "$fetch_script" "$base_url/fetch-all.sh" || {
+      err "No se pudo descargar fetch-all.sh desde $base_url"
+      return 1
+    }
+    chmod +x "$fetch_script"
+  fi
+
+  bash "$fetch_script" "$base_url"
+  log "Scripts actualizados."
+}
+
 show_header() {
   echo
   echo "========================================"
@@ -56,10 +79,12 @@ while true; do
   show_header
   arrow_select "Seleccione una acción:" \
     "Status" \
+    "Actualizar scripts" \
     "Install" \
     "Update" \
     "Rollback" \
     "Set DB connection" \
+    "Set backend health endpoint" \
     "Healthcheck backend (soft)" \
     "Healthcheck frontend" \
     "Restart backend" \
@@ -72,6 +97,9 @@ while true; do
     "Status")
       run_script "status.sh"
       ;;
+    "Actualizar scripts")
+      refresh_scripts
+      ;;
     "Install")
       run_script "install.sh"
       ;;
@@ -83,6 +111,9 @@ while true; do
       ;;
     "Set DB connection")
       run_script "set-db-connection.sh"
+      ;;
+    "Set backend health endpoint")
+      run_script "set-health-endpoint.sh"
       ;;
     "Healthcheck backend (soft)")
       run_script "healthcheck.sh" backend --soft

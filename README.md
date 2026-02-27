@@ -13,6 +13,7 @@ Scripts de despliegue para la aplicación. Los artefactos (`.rar`) se almacenan 
 ├── healthcheck.sh    - Verifica que la aplicación está sana
 ├── status.sh         - Muestra versión desplegada y estado de frontend/backend
 ├── set-db-connection.sh - Configura ConnectionStrings:DefaultConnection para backend
+├── set-health-endpoint.sh - Configura endpoint de health backend para status.sh
 ├── ops-menu.sh       - Consola interactiva para técnicos (menú)
 └── runbook.md        - Paso a paso operacional
 ```
@@ -110,6 +111,9 @@ bash status.sh --json
 # Configurar/cambiar la cadena de conexión del backend (persistente)
 bash set-db-connection.sh
 
+# Configurar endpoint health del backend para status.sh (persistente)
+bash set-health-endpoint.sh
+
 # Consola técnica con menú
 bash ops-menu.sh
 ```
@@ -119,6 +123,10 @@ Notas de cadena de conexión:
 - `install.sh`, `update.sh` y `rollback.sh` preguntan en backend si quieres usar la cadena guardada o ingresar otra.
 - `install.sh` y `update.sh` aplican automáticamente esa cadena a `publish/appsettings.json` cuando el componente es backend.
 - `appsettings.Development.json` no se modifica.
+
+Notas de health endpoint backend:
+- `set-health-endpoint.sh` guarda la URL en `/app/config/backend-health-endpoint.txt`.
+- `status.sh` lee esa URL y la usa como primer endpoint candidato para validar backend.
 
 ## Gestión de servicios
 
