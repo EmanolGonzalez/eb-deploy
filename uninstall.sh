@@ -64,6 +64,7 @@ remove_if_exists "/app/releases/frontend"
 remove_if_exists "/app/releases/backend"
 
 log "Removing script/runtime config files (except evidence data)..."
+remove_if_exists "/app/config/config.env"
 remove_if_exists "/app/config/storage.conf"
 remove_if_exists "/app/config/db-connection.txt"
 remove_if_exists "/app/config/backend-health-endpoint.txt"

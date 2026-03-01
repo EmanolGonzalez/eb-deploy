@@ -44,24 +44,68 @@ run_script() {
 }
 
 refresh_scripts() {
-  local fetch_script="$SCRIPT_DIR/fetch-all.sh"
-  local base_url=""
+  local base_url="" configured_url=""
 
-  read -rp "URL base raw de GitHub: " base_url
-  if [[ -z "$base_url" ]]; then
-    err "La URL base es obligatoria."
+  # Leer SCRIPTS_BASE_URL desde config.env si existe
+  local config_file="/app/config/config.env"
+  if [[ -f "$config_file" ]]; then
+    configured_url="$(grep -E '^SCRIPTS_BASE_URL=' "$config_file" | cut -d= -f2- | tr -d '"' || true)"
+  fi
+
+  if [[ -n "$configured_url" ]]; then
+    # Mismo patrón que DB connection: mostrar la configurada y preguntar
+    log "URL configurada: $configured_url"
+    arrow_select "¿Qué URL deseas usar para actualizar los scripts?" \
+      "Usar URL configurada" \
+      "Ingresar otra"
+    if [[ "$ARROW_SELECTION" == "Usar URL configurada" ]]; then
+      base_url="$configured_url"
+    else
+      read -rp "Nueva URL base raw de GitHub: " base_url
+      if [[ -z "$base_url" ]]; then
+        err "La URL es obligatoria."
+        return 1
+      fi
+    fi
+  else
+    # Primera vez: no hay URL configurada, pedir obligatoriamente
+    log "SCRIPTS_BASE_URL no configurada. Puedes guardarla con 'Set scripts URL' en el menú."
+    read -rp "URL base raw de GitHub (ej: https://raw.githubusercontent.com/usuario/repo/main): " base_url
+    if [[ -z "$base_url" ]]; then
+      err "La URL es obligatoria."
+      return 1
+    fi
+  fi
+
+  # fetch-all.sh se descarga en un archivo temporal — nunca queda en /app/scripts/
+  local tmp_fetch
+  tmp_fetch="$(mktemp /tmp/fetch-all-XXXXXX.sh)"
+  trap 'rm -f "$tmp_fetch"' RETURN INT TERM
+
+  log "Descargando fetch-all.sh (temporalmente en $tmp_fetch)..."
+  if ! wget -q -O "$tmp_fetch" "$base_url/fetch-all.sh"; then
+    err "No se pudo descargar fetch-all.sh desde: $base_url"
+    err "Verifica la URL y la conectividad. Los scripts actuales no fueron modificados."
     return 1
   fi
 
-  log "Actualizando fetch-all.sh..."
-  wget -q -O "$fetch_script" "$base_url/fetch-all.sh" || {
-    err "No se pudo descargar fetch-all.sh desde $base_url"
+  # Validación mínima: debe ser un script bash
+  if ! grep -q '^#!/' "$tmp_fetch" 2>/dev/null; then
+    err "El archivo descargado no parece un script válido (sin shebang)."
+    err "Puede ser una respuesta de error de GitHub (URL incorrecta)."
     return 1
-  }
-  chmod +x "$fetch_script"
+  fi
 
-  bash "$fetch_script" "$base_url"
-  log "Scripts actualizados."
+  chmod +x "$tmp_fetch"
+  log "Ejecutando fetch-all.sh para actualizar scripts en $SCRIPT_DIR..."
+
+  if ! bash "$tmp_fetch" "$base_url"; then
+    err "fetch-all.sh finalizó con error. Revisa los mensajes anteriores."
+    return 1
+  fi
+
+  # El trap elimina $tmp_fetch al retornar — fetch-all.sh no queda en disco
+  log "Scripts actualizados correctamente. fetch-all.sh temporal eliminado."
 }
 
 show_header() {
@@ -84,6 +128,7 @@ while true; do
     "Uninstall" \
     "Set DB connection" \
     "Set backend health endpoint" \
+    "Set scripts URL" \
     "Configurar HTTPS interno" \
     "Healthcheck backend (soft)" \
     "Healthcheck frontend" \
@@ -117,6 +162,9 @@ while true; do
       ;;
     "Set backend health endpoint")
       run_script "set-health-endpoint.sh"
+      ;;
+    "Set scripts URL")
+      run_script "set-scripts-url.sh"
       ;;
     "Configurar HTTPS interno")
       run_script "configure-internal-https.sh"

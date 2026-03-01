@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-BACKEND_HEALTH_ENDPOINT_FILE="/app/config/backend-health-endpoint.txt"
+CONFIG_FILE="/app/config/config.env"
 
 OUTPUT_FORMAT="text"
 if [[ "${1:-}" == "--json" ]]; then
@@ -54,12 +54,10 @@ BACKEND_PORT_OK=false
 BACKEND_HEALTH_OK=false
 
 load_backend_health_endpoint_if_exists() {
-  if [[ -f "$BACKEND_HEALTH_ENDPOINT_FILE" ]]; then
-    local configured
-    configured="$(cat "$BACKEND_HEALTH_ENDPOINT_FILE")"
-    if [[ -n "$configured" ]]; then
-      BACKEND_HEALTH_ENDPOINT="$configured"
-    fi
+  # BACKEND_HEALTH_ENDPOINT viene de config.env si está configurado
+  if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE" 2>/dev/null || true
   fi
 }
 

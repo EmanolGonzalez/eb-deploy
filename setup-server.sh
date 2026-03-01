@@ -1,29 +1,17 @@
-﻿#!/usr/bin/env bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 # =============================================================================
 # setup-server.sh — Instalación y preparación completa del entorno
-# Automatiza la instalación de dependencias, configuración de servicios y despliegue inicial
+# Automatiza: dependencias, azcopy, config.env centralizado, scripts, nginx, systemd
 # =============================================================================
 
-log() { echo -e "\033[1;34m==> $*\033[0m"; }
-err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
+CONFIG_FILE="/app/config/config.env"
+SCRIPTS_DIR="/app/scripts"
 
-NGINX_SERVER_NAME_FILE="/app/config/nginx-server-name.txt"
-
-download_scripts_directly() {
-  local base_url="$1"
-  local scripts=(ops-menu.sh install.sh update.sh rollback.sh uninstall.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh configure-internal-https.sh setup-server.sh)
-
-  log "Descargando scripts directamente (fallback)..."
-  for script in "${scripts[@]}"; do
-    wget -q -O "$script" "$base_url/$script" || {
-      err "No se pudo descargar $script desde $base_url"
-      return 1
-    }
-    chmod +x "$script"
-  done
-}
+log()  { echo -e "\033[1;34m==> $*\033[0m"; }
+err()  { echo -e "\033[1;31mError: $*\033[0m" >&2; }
+ok()   { echo -e "\033[1;32m OK  $*\033[0m"; }
 
 require_root() {
   if [[ "$EUID" -ne 0 ]]; then
@@ -39,90 +27,326 @@ escape_for_sed_replacement() {
   printf '%s' "$input"
 }
 
-resolve_server_name() {
-  SERVER_NAME_VALUE="_"
+# =============================================================================
+# AZCOPY
+# =============================================================================
 
-  if [[ -f "$NGINX_SERVER_NAME_FILE" ]]; then
-    SERVER_NAME_VALUE="$(cat "$NGINX_SERVER_NAME_FILE")"
-    if [[ -n "$SERVER_NAME_VALUE" ]]; then
-      log "Server name cargado desde $NGINX_SERVER_NAME_FILE: $SERVER_NAME_VALUE"
-      return
+install_azcopy() {
+  if command -v azcopy &>/dev/null; then
+    ok "azcopy ya instalado: $(azcopy --version 2>/dev/null | head -1)"
+    return
+  fi
+
+  log "Instalando azcopy..."
+  local arch download_url tmp_dir azcopy_bin
+
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64)  download_url="https://aka.ms/downloadazcopy-v10-linux" ;;
+    aarch64) download_url="https://aka.ms/downloadazcopy-v10-linux-arm64" ;;
+    *)
+      err "Arquitectura no soportada para instalación automática: $arch"
+      err "Instala azcopy manualmente desde: https://learn.microsoft.com/azure/storage/common/storage-use-azcopy-v10"
+      exit 1
+      ;;
+  esac
+
+  tmp_dir="$(mktemp -d /tmp/azcopy-install-XXXXXX)"
+  log "Descargando azcopy ($arch)..."
+  if ! curl -fsSL "$download_url" -o "$tmp_dir/azcopy.tar.gz"; then
+    rm -rf "$tmp_dir"
+    err "No se pudo descargar azcopy desde Microsoft."
+    exit 1
+  fi
+
+  tar -xzf "$tmp_dir/azcopy.tar.gz" -C "$tmp_dir"
+  azcopy_bin="$(find "$tmp_dir" -name "azcopy" -type f | head -1 || true)"
+
+  if [[ -z "$azcopy_bin" ]]; then
+    rm -rf "$tmp_dir"
+    err "No se encontró el binario azcopy después de extraer."
+    exit 1
+  fi
+
+  mv "$azcopy_bin" /usr/local/bin/azcopy
+  chmod +x /usr/local/bin/azcopy
+  rm -rf "$tmp_dir"
+
+  ok "azcopy instalado: $(azcopy --version 2>/dev/null | head -1)"
+}
+
+# =============================================================================
+# CONFIGURACIÓN CENTRALIZADA
+# =============================================================================
+
+write_config_env() {
+  local storage_account="$1"
+  local container_name="$2"
+  local base_url="$3"
+  local scripts_base_url="$4"
+  local nginx_server_name="${5:-}"
+  local backend_health_endpoint="${6:-}"
+  local db_connection_string="${7:-}"
+
+  mkdir -p /app/config
+  cat > "$CONFIG_FILE" <<EOF
+# =============================================================================
+# /app/config/config.env — Configuración centralizada del sistema de deploy
+# Generado por setup-server.sh el $(date '+%Y-%m-%d %H:%M:%S')
+# =============================================================================
+
+CONFIG_VERSION="1"
+
+# --- CRÍTICAS (obligatorias) ---
+STORAGE_ACCOUNT="${storage_account}"
+CONTAINER_NAME="${container_name}"
+BASE_URL="${base_url}"
+
+# --- SCRIPTS ---
+# URL base raw de GitHub. Usado por ops-menu.sh al actualizar scripts.
+SCRIPTS_BASE_URL="${scripts_base_url}"
+
+# --- OPCIONALES ---
+NGINX_SERVER_NAME="${nginx_server_name}"
+BACKEND_HEALTH_ENDPOINT="${backend_health_endpoint}"
+
+# --- SECRETAS ---
+DB_CONNECTION_STRING="${db_connection_string}"
+EOF
+
+  chmod 600 "$CONFIG_FILE"
+  ok "config.env escrito: $CONFIG_FILE"
+}
+
+migrate_legacy_config() {
+  # Migra automáticamente la configuración dispersa de archivos .txt/storage.conf
+  # hacia el nuevo config.env unificado.
+  local storage_conf="/app/config/storage.conf"
+  local nginx_name_file="/app/config/nginx-server-name.txt"
+  local health_file="/app/config/backend-health-endpoint.txt"
+  local found=false
+
+  local storage_account="" container_name="" base_url=""
+  local nginx_server_name="" backend_health_endpoint=""
+
+  if [[ -f "$storage_conf" ]]; then
+    found=true
+    # shellcheck source=/dev/null
+    source "$storage_conf"
+    storage_account="${STORAGE_ACCOUNT:-}"
+    container_name="${CONTAINER_NAME:-}"
+    base_url="${BASE_URL:-}"
+    log "Migración: storage.conf (account=${storage_account}, container=${container_name})"
+  fi
+
+  if [[ -f "$nginx_name_file" ]]; then
+    nginx_server_name="$(tr -d '\n' < "$nginx_name_file")"
+    if [[ -n "$nginx_server_name" ]]; then
+      found=true
+      log "Migración: nginx-server-name.txt (${nginx_server_name})"
     fi
   fi
 
-  read -rp "¿Deseas registrar dominio/subdominio para Nginx ahora? [y/N]: " use_domain
+  if [[ -f "$health_file" ]]; then
+    backend_health_endpoint="$(tr -d '\n' < "$health_file")"
+    if [[ -n "$backend_health_endpoint" ]]; then
+      found=true
+      log "Migración: backend-health-endpoint.txt (${backend_health_endpoint})"
+    fi
+  fi
+
+  if [[ "$found" == true ]]; then
+    # SCRIPTS_BASE_URL y DB_CONNECTION_STRING no existían antes — migrar si hay
+    local scripts_base_url="" db_connection_string=""
+    read -rp "URL base raw de GitHub para scripts (Enter para dejarlo vacío por ahora): " scripts_base_url
+
+    # Migrar db-connection.txt si existe
+    local db_file="/app/config/db-connection.txt"
+    if [[ -f "$db_file" ]]; then
+      db_connection_string="$(cat "$db_file")"
+      [[ -n "$db_connection_string" ]] && log "Migración: db-connection.txt → DB_CONNECTION_STRING"
+    fi
+
+    write_config_env "$storage_account" "$container_name" "$base_url" \
+      "$scripts_base_url" "$nginx_server_name" "$backend_health_endpoint" "$db_connection_string"
+    log "Migración completada. Los archivos heredados se conservan como respaldo."
+    return 0
+  fi
+
+  return 1  # No había nada que migrar
+}
+
+setup_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    log "config.env encontrado en $CONFIG_FILE. Cargando..."
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+    return
+  fi
+
+  log "No se encontró config.env. Buscando configuración heredada para migrar..."
+  if migrate_legacy_config; then
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+    return
+  fi
+
+  # Primera instalación: configuración interactiva completa
+  log "Configurando acceso a Azure Blob Storage..."
+  local storage_account container_name base_url scripts_base_url
+
+  read -rp "Azure Storage Account name: " storage_account
+  if [[ -z "$storage_account" ]]; then
+    err "Storage Account es obligatorio."
+    exit 1
+  fi
+
+  read -rp "Azure Container Name: " container_name
+  if [[ -z "$container_name" ]]; then
+    err "Container Name es obligatorio."
+    exit 1
+  fi
+
+  base_url="https://${storage_account}.blob.core.windows.net/${container_name}"
+  log "BASE_URL: $base_url"
+
+  read -rp "URL base raw de GitHub para scripts (ej: https://raw.githubusercontent.com/usuario/repo/main): " scripts_base_url
+
+  write_config_env "$storage_account" "$container_name" "$base_url" "$scripts_base_url"
+  # shellcheck source=/dev/null
+  source "$CONFIG_FILE"
+}
+
+# =============================================================================
+# NGINX
+# =============================================================================
+
+resolve_server_name() {
+  SERVER_NAME_VALUE="${NGINX_SERVER_NAME:-}"
+
+  if [[ -n "$SERVER_NAME_VALUE" ]]; then
+    log "Nginx server_name desde config.env: $SERVER_NAME_VALUE"
+    return
+  fi
+
+  SERVER_NAME_VALUE="_"
+  read -rp "¿Deseas configurar dominio/subdominio para Nginx? [y/N]: " use_domain
   if [[ "$use_domain" =~ ^[Yy]$ ]]; then
-    read -rp "Ingresa dominio/subdominio (puedes poner varios separados por espacio): " domain_value
+    read -rp "Dominio(s) (separados por espacio): " domain_value
     if [[ -n "$domain_value" ]]; then
       SERVER_NAME_VALUE="$domain_value"
-      mkdir -p /app/config
-      printf '%s' "$SERVER_NAME_VALUE" > "$NGINX_SERVER_NAME_FILE"
-      chmod 600 "$NGINX_SERVER_NAME_FILE"
-      log "Server name guardado en $NGINX_SERVER_NAME_FILE"
+      # Persistir en config.env
+      if [[ -f "$CONFIG_FILE" ]]; then
+        sed -i "s|^NGINX_SERVER_NAME=.*|NGINX_SERVER_NAME=\"${domain_value}\"|" "$CONFIG_FILE"
+        log "NGINX_SERVER_NAME actualizado en config.env"
+      fi
     fi
   fi
 }
 
-# 1. Validar root
+# =============================================================================
+# DESCARGA DE SCRIPTS
+# =============================================================================
+
+download_scripts_fallback() {
+  # Se usa solo si fetch-all.sh falla o no se puede descargar
+  local base_url="$1"
+  local scripts=(
+    ops-menu.sh install.sh update.sh rollback.sh uninstall.sh
+    healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh
+    configure-internal-https.sh setup-server.sh release.sh
+  )
+  log "Descargando scripts directamente (fallback)..."
+  for script in "${scripts[@]}"; do
+    if wget -q -O "$script" "$base_url/$script"; then
+      chmod +x "$script"
+    else
+      err "No se pudo descargar $script desde $base_url"
+      return 1
+    fi
+  done
+  ok "Todos los scripts descargados (fallback)."
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
 require_root
 
-# 2. Actualizar sistema e instalar dependencias base
+# 1. Sistema base
 log "Actualizando sistema e instalando dependencias base..."
-apt update && apt upgrade -y
-apt install -y curl git wget nginx unrar
+apt-get update -qq
+apt-get upgrade -y -qq
+apt-get install -y -qq curl git wget nginx unrar tar
+ok "Dependencias base instaladas."
 
-# 3. Instalar Node.js 20 LTS
-if ! command -v node >/dev/null || [[ $(node -v) != v20* ]]; then
+# 2. Node.js 20 LTS
+if ! command -v node &>/dev/null || [[ "$(node -v 2>/dev/null)" != v20* ]]; then
   log "Instalando Node.js 20 LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  apt install -y nodejs
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+  apt-get install -y -qq nodejs
 fi
+ok "Node.js: $(node -v)"
 
-# 4. Instalar .NET 9 SDK
-if ! command -v dotnet >/dev/null || ! dotnet --list-sdks | grep -q 9.0; then
+# 3. .NET 9 SDK
+if ! command -v dotnet &>/dev/null || ! dotnet --list-sdks 2>/dev/null | grep -q '^9\.'; then
   log "Instalando .NET 9 SDK..."
-  curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-  chmod +x /tmp/dotnet-install.sh
-  /tmp/dotnet-install.sh --channel 9.0 --install-dir /usr/share/dotnet
+  DOTNET_INSTALL="/tmp/dotnet-install-$$.sh"
+  curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$DOTNET_INSTALL"
+  chmod +x "$DOTNET_INSTALL"
+  "$DOTNET_INSTALL" --channel 9.0 --install-dir /usr/share/dotnet
   ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
-  rm -f /tmp/dotnet-install.sh
-  log ".NET 9 instalado: $(dotnet --version)"
+  rm -f "$DOTNET_INSTALL"
+fi
+ok ".NET: $(dotnet --version)"
+
+# 4. azcopy
+install_azcopy
+
+# 5. Nginx
+log "Habilitando nginx..."
+systemctl enable --now nginx
+ok "nginx activo."
+
+# 6. Estructura de directorios
+log "Creando estructura /app/..."
+mkdir -p "$SCRIPTS_DIR" /app/releases /app/config
+ok "Directorios creados."
+
+# 7. Configuración centralizada
+setup_config
+
+# 8. Descarga de scripts (fetch-all efímero)
+cd "$SCRIPTS_DIR"
+
+SCRIPTS_URL="${SCRIPTS_BASE_URL:-}"
+if [[ -z "$SCRIPTS_URL" ]]; then
+  read -rp "URL base raw de GitHub para scripts: " SCRIPTS_URL
 fi
 
-# 5. Habilitar y arrancar nginx
-log "Habilitando y arrancando nginx..."
-systemctl enable --now nginx
+FETCH_TMP="$(mktemp /tmp/fetch-all-XXXXXX.sh)"
+trap 'rm -f "$FETCH_TMP"' EXIT
 
-# 6. Crear estructura de carpetas
-log "Creando estructura de carpetas en /app..."
-mkdir -p /app/scripts /app/releases /app/config
-
-# 7. Descargar fetch-all.sh y scripts de despliegue
-read -rp "Introduce la URL base raw de GitHub (ej: https://raw.githubusercontent.com/usuario/repo/main): " SCRIPTS_BASE_URL
-cd /app/scripts
-
-FETCH_ALL_OK=0
-if wget -q -O fetch-all.sh "${SCRIPTS_BASE_URL}/fetch-all.sh"; then
-  chmod +x fetch-all.sh
-  log "Descargando scripts con fetch-all.sh (ops-menu.sh primero)..."
-  if bash fetch-all.sh "$SCRIPTS_BASE_URL"; then
-    FETCH_ALL_OK=1
-  else
-    err "fetch-all.sh falló. Se usará descarga directa."
+log "Descargando scripts vía fetch-all (efímero)..."
+if wget -q -O "$FETCH_TMP" "$SCRIPTS_URL/fetch-all.sh" 2>/dev/null \
+    && grep -q '^#!/' "$FETCH_TMP" 2>/dev/null; then
+  chmod +x "$FETCH_TMP"
+  if ! bash "$FETCH_TMP" "$SCRIPTS_URL"; then
+    err "fetch-all.sh terminó con error. Usando descarga directa..."
+    download_scripts_fallback "$SCRIPTS_URL"
   fi
 else
-  err "No se pudo descargar fetch-all.sh. Se usará descarga directa."
+  err "No se pudo obtener fetch-all.sh desde $SCRIPTS_URL. Usando descarga directa..."
+  download_scripts_fallback "$SCRIPTS_URL"
 fi
+# El trap elimina FETCH_TMP automáticamente al salir
 
-if [[ "$FETCH_ALL_OK" -ne 1 ]]; then
-  download_scripts_directly "$SCRIPTS_BASE_URL"
-fi
-
-# 8. Configuración de Nginx (plantilla básica, personalizar según necesidad)
+# 9. Configuración de Nginx
 if [[ ! -f /etc/nginx/sites-available/app ]]; then
   resolve_server_name
-  log "Configurando Nginx para servir frontend y backend..."
-  cat > /etc/nginx/sites-available/app <<'EOF'
+  log "Configurando Nginx..."
+  cat > /etc/nginx/sites-available/app <<'NGINXEOF'
 server {
     listen 80;
     server_name __SERVER_NAME__;
@@ -141,18 +365,19 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-EOF
+NGINXEOF
   ESCAPED_SERVER_NAME="$(escape_for_sed_replacement "$SERVER_NAME_VALUE")"
   sed -i "s/__SERVER_NAME__/${ESCAPED_SERVER_NAME}/" /etc/nginx/sites-available/app
   ln -sf /etc/nginx/sites-available/app /etc/nginx/sites-enabled/app
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
+  ok "Nginx configurado."
 fi
 
-# 9. Configuración de systemd para backend (plantilla básica)
+# 10. Servicio systemd backend
 if [[ ! -f /etc/systemd/system/backend.service ]]; then
-  log "Configurando systemd para backend..."
-  cat > /etc/systemd/system/backend.service <<EOF
+  log "Configurando servicio systemd backend..."
+  cat > /etc/systemd/system/backend.service <<'SYSTEMDEOF'
 [Unit]
 Description=Backend .NET API Service
 After=network.target
@@ -169,28 +394,12 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SYSTEMDEOF
   systemctl daemon-reload
   systemctl enable backend
+  ok "Servicio backend configurado."
 fi
 
-# 10. Configuración de Azure Storage
-CONFIG_FILE="/app/config/storage.conf"
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  log "Configurando acceso a Azure Blob Storage..."
-  read -rp "Enter Azure Storage Account: " STORAGE_ACCOUNT
-  read -rp "Enter Azure Container Name: " CONTAINER_NAME
-  BASE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}"
-  cat > "$CONFIG_FILE" <<EOF
-STORAGE_ACCOUNT="$STORAGE_ACCOUNT"
-CONTAINER_NAME="$CONTAINER_NAME"
-BASE_URL="$BASE_URL"
-EOF
-  log "Configuración guardada en $CONFIG_FILE."
-fi
-
-log "Servidor preparado. Inicia con el menú técnico:"
-log "  bash /app/scripts/ops-menu.sh"
-log "Si prefieres flujo manual, ejecuta install.sh para cada componente:"
-log "  bash /app/scripts/install.sh   # frontend"
-log "  bash /app/scripts/install.sh   # backend"
+log "Servidor preparado."
+log "  Menú de operaciones : bash $SCRIPTS_DIR/ops-menu.sh"
+log "  Instalar componente : bash $SCRIPTS_DIR/install.sh"
