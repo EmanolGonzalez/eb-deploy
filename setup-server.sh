@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -e
 
 # =============================================================================
@@ -159,7 +159,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/dotnet /app/backend/current/publish/api.dll
+ExecStart=/usr/bin/dotnet /app/backend/current/publish/Api.dll
 WorkingDirectory=/app/backend/current/publish
 EnvironmentFile=-/etc/xproyect-api.env
 Restart=always
