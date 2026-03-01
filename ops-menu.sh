@@ -81,8 +81,10 @@ while true; do
     "Install" \
     "Update" \
     "Rollback" \
+    "Uninstall" \
     "Set DB connection" \
     "Set backend health endpoint" \
+    "Configurar HTTPS interno" \
     "Healthcheck backend (soft)" \
     "Healthcheck frontend" \
     "Restart backend" \
@@ -107,11 +109,17 @@ while true; do
     "Rollback")
       run_script "rollback.sh"
       ;;
+    "Uninstall")
+      run_script "uninstall.sh"
+      ;;
     "Set DB connection")
       run_script "set-db-connection.sh"
       ;;
     "Set backend health endpoint")
       run_script "set-health-endpoint.sh"
+      ;;
+    "Configurar HTTPS interno")
+      run_script "configure-internal-https.sh"
       ;;
     "Healthcheck backend (soft)")
       run_script "healthcheck.sh" backend --soft

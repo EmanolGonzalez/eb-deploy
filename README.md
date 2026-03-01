@@ -18,9 +18,11 @@ Usa siempre el runbook como fuente principal para pasos y procedimientos.
 ├── install.sh
 ├── update.sh
 ├── rollback.sh
+├── uninstall.sh
 ├── healthcheck.sh
 ├── status.sh
 ├── set-db-connection.sh
 ├── set-health-endpoint.sh
+├── configure-internal-https.sh
 └── ops-menu.sh
 ```

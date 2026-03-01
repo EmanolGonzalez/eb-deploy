@@ -49,6 +49,7 @@ Ejemplo:
    ```bash
    bash setup-server.sh
    ```
+   Durante el setup, el script preguntará si deseas registrar dominio/subdominio para `server_name` en Nginx.
 5. Instala cada componente por separado:
    ```bash
    bash install.sh   # selecciona frontend
@@ -84,6 +85,15 @@ bash rollback.sh
 Notas de rollback:
 - `rollback.sh` ejecuta healthcheck en modo suave (`--soft`) para no bloquear el flujo por transitorios.
 
+### Uninstall de la aplicación (manteniendo evidencia)
+```bash
+bash uninstall.sh
+```
+
+Notas de uninstall:
+- Elimina despliegue, sitio Nginx de la app y servicio backend.
+- Preserva las carpetas `/app/evidence` y `/app/evidences`.
+
 ### Healthcheck
 ```bash
 bash healthcheck.sh backend
@@ -111,6 +121,11 @@ bash set-db-connection.sh
 bash set-health-endpoint.sh
 ```
 
+### Configurar HTTPS interno (Nginx + subdominio)
+```bash
+bash configure-internal-https.sh
+```
+
 ### Consola técnica (menú)
 ```bash
 bash ops-menu.sh
@@ -126,6 +141,7 @@ Notas:
 - `appsettings.Development.json` no se toca.
 - `set-health-endpoint.sh` guarda la URL en `/app/config/backend-health-endpoint.txt`.
 - `status.sh` usa esa URL como endpoint preferido para validar el backend.
+- `configure-internal-https.sh` crea/actualiza el virtual host Nginx para subdominio interno con certificado TLS y proxy `/api` al backend.
 
 ## Operación de servicios y logs
 

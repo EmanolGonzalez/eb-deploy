@@ -70,15 +70,12 @@ ensure_db_connection_for_backend() {
 	fi
 
 	if [[ -n "${DB_CONNECTION_STRING:-}" ]]; then
-		local summary use_label
-		summary="$(connection_summary "$DB_CONNECTION_STRING")"
-		use_label="Usar actual (${summary})"
-		arrow_select "Se detectó una cadena de conexión guardada. ¿Qué deseas hacer?" "$use_label" "Usar otra"
+		arrow_select "Se detectó una cadena de conexión guardada. ¿Qué deseas hacer?" "Usar cadena guardada" "Usar otra"
 
 		if [[ "$ARROW_SELECTION" == "Usar otra" ]]; then
 			prompt_new_db_connection_string
 		else
-			log "Using existing DB connection string ($summary)"
+			log "Using existing DB connection string."
 		fi
 		return
 	fi

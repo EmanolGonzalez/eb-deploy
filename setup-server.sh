@@ -9,9 +9,11 @@ set -e
 log() { echo -e "\033[1;34m==> $*\033[0m"; }
 err() { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 
+NGINX_SERVER_NAME_FILE="/app/config/nginx-server-name.txt"
+
 download_scripts_directly() {
   local base_url="$1"
-  local scripts=(ops-menu.sh install.sh update.sh rollback.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh setup-server.sh)
+  local scripts=(ops-menu.sh install.sh update.sh rollback.sh uninstall.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh configure-internal-https.sh setup-server.sh)
 
   log "Descargando scripts directamente (fallback)..."
   for script in "${scripts[@]}"; do
@@ -27,6 +29,37 @@ require_root() {
   if [[ "$EUID" -ne 0 ]]; then
     err "Este script debe ejecutarse como root."
     exit 1
+  fi
+}
+
+escape_for_sed_replacement() {
+  local input="$1"
+  input="${input//\\/\\\\}"
+  input="${input//&/\\&}"
+  printf '%s' "$input"
+}
+
+resolve_server_name() {
+  SERVER_NAME_VALUE="_"
+
+  if [[ -f "$NGINX_SERVER_NAME_FILE" ]]; then
+    SERVER_NAME_VALUE="$(cat "$NGINX_SERVER_NAME_FILE")"
+    if [[ -n "$SERVER_NAME_VALUE" ]]; then
+      log "Server name cargado desde $NGINX_SERVER_NAME_FILE: $SERVER_NAME_VALUE"
+      return
+    fi
+  fi
+
+  read -rp "¿Deseas registrar dominio/subdominio para Nginx ahora? [y/N]: " use_domain
+  if [[ "$use_domain" =~ ^[Yy]$ ]]; then
+    read -rp "Ingresa dominio/subdominio (puedes poner varios separados por espacio): " domain_value
+    if [[ -n "$domain_value" ]]; then
+      SERVER_NAME_VALUE="$domain_value"
+      mkdir -p /app/config
+      printf '%s' "$SERVER_NAME_VALUE" > "$NGINX_SERVER_NAME_FILE"
+      chmod 600 "$NGINX_SERVER_NAME_FILE"
+      log "Server name guardado en $NGINX_SERVER_NAME_FILE"
+    fi
   fi
 }
 
@@ -87,11 +120,12 @@ fi
 
 # 8. Configuración de Nginx (plantilla básica, personalizar según necesidad)
 if [[ ! -f /etc/nginx/sites-available/app ]]; then
+  resolve_server_name
   log "Configurando Nginx para servir frontend y backend..."
   cat > /etc/nginx/sites-available/app <<'EOF'
 server {
     listen 80;
-    server_name _;
+    server_name __SERVER_NAME__;
     root /app/frontend/current;
     index index.html;
 
@@ -108,6 +142,8 @@ server {
     }
 }
 EOF
+  ESCAPED_SERVER_NAME="$(escape_for_sed_replacement "$SERVER_NAME_VALUE")"
+  sed -i "s/__SERVER_NAME__/${ESCAPED_SERVER_NAME}/" /etc/nginx/sites-available/app
   ln -sf /etc/nginx/sites-available/app /etc/nginx/sites-enabled/app
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
