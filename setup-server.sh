@@ -386,7 +386,6 @@ After=network.target
 Type=simple
 ExecStart=/usr/bin/dotnet /app/backend/current/publish/Api.dll
 WorkingDirectory=/app/backend/current/publish
-EnvironmentFile=-/etc/eb-api.env
 Restart=always
 RestartSec=5
 StandardOutput=journal
