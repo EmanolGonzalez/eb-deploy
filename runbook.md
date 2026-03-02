@@ -101,6 +101,37 @@ Esto es intencional: un SAS comprometido tiene alcance limitado al tiempo de vid
 
 ---
 
+## Prerrequisitos de infraestructura (responsabilidad del administrador)
+
+Antes de ejecutar cualquier script en el servidor, el administrador de infraestructura debe garantizar lo siguiente a nivel de red y virtualización.
+
+### Puertos requeridos
+
+| Puerto | Protocolo | Uso | Requerido por |
+|---|---|---|---|
+| 22 | TCP | SSH — acceso remoto al servidor | Administración |
+| 80 | TCP | HTTP — frontend y proxy al backend | Nginx |
+| 443 | TCP | HTTPS — si se configura TLS interno | `configure-internal-https.sh` |
+
+Estos puertos deben estar habilitados tanto en el **virtualizador** (VMware, Hyper-V, Proxmox, etc.) como en cualquier firewall de red intermedio.
+
+> ⚠️ **El puerto 22 (SSH) nunca debe bloquearse.** Sin SSH no hay forma de acceder al servidor para operar o corregir problemas. Si se aplica alguna regla de firewall en el SO (`ufw`, `iptables`), asegurarse de que SSH esté explícitamente permitido **antes** de activar cualquier regla restrictiva.
+
+### Firewall del SO (ufw)
+
+En Debian/Ubuntu, `ufw` viene **inactivo por defecto**. Los scripts de deploy no lo modifican — eso queda bajo responsabilidad del administrador. Si se decide activarlo, los puertos mínimos a permitir son:
+
+```bash
+ufw allow 22/tcp    # SSH — obligatorio, siempre primero
+ufw allow 80/tcp    # HTTP
+ufw allow 443/tcp   # HTTPS (si aplica)
+ufw enable
+```
+
+> ⚠️ Nunca ejecutar `ufw enable` sin haber permitido el puerto 22 primero. Hacerlo bloquea la sesión SSH activa y deja el servidor inaccesible remotamente.
+
+---
+
 ## Prerrequisito: hosts (entornos cerrados)
 
 En entornos sin DNS interno, agrega los aliases necesarios antes del despliegue.
