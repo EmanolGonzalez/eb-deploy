@@ -3,24 +3,26 @@ set -euo pipefail
 
 # =============================================================================
 # release.sh — Sube un nuevo artifact a Azure Blob Storage
+# Versión Git Bash / Windows — usa curl + Azure Blob REST API (sin azcopy)
 #
 # Uso:
 #   bash release.sh
+#
+# Opcional — evita que el SAS token aparezca en el historial de terminal:
 #   AZURE_SAS_TOKEN="sv=..." bash release.sh
 #
 # Prerequisitos:
-#   - azcopy instalado y en PATH
-#   - /app/config/config.env con STORAGE_ACCOUNT, CONTAINER_NAME, BASE_URL
-#   - El archivo local debe llamarse exactamente app.rar
+#   - curl en PATH (viene incluido con Git for Windows)
+#   - bash 4.0+ (Git for Windows incluye bash 4.4+)
 #
 # Estructura de blobs en Azure:
 #   <COMPONENT>/<VERSION>/app.rar
 #   Ejemplo: frontend/1.0.0/app.rar | backend/2.3.1/app.rar
 # =============================================================================
 
-CONFIG_FILE="/app/config/config.env"
+AZURE_API_VERSION="2020-08-04"
 
-# ----------------------------- COLORES / LOGGING -----------------------------
+# ── COLORES / LOGGING ──────────────────────────────────────────────────────────
 
 log()  { echo -e "\033[1;34m==> $*\033[0m"; }
 ok()   { echo -e "\033[1;32m OK  $*\033[0m"; }
@@ -28,45 +30,43 @@ err()  { echo -e "\033[1;31mERR  $*\033[0m" >&2; }
 warn() { echo -e "\033[1;33mWARN $*\033[0m"; }
 step() { echo; echo -e "\033[1;37m--- $* ---\033[0m"; }
 
-# ----------------------------- FUNCIONES CORE --------------------------------
+# ── FUNCIONES CORE ─────────────────────────────────────────────────────────────
+
+validate_curl() {
+  step "Validando dependencias"
+
+  if ! command -v curl &>/dev/null; then
+    err "curl no está disponible en PATH."
+    err "Git for Windows incluye curl — verifica tu instalación."
+    exit 1
+  fi
+
+  local curl_version
+  curl_version="$(curl --version 2>/dev/null | head -1)"
+  ok "curl disponible: $curl_version"
+}
 
 load_config() {
-  step "Cargando configuración"
+  step "Configuración de Azure Storage"
 
-  if [[ ! -f "$CONFIG_FILE" ]]; then
-    err "No se encontró el archivo de configuración: $CONFIG_FILE"
-    err "Ejecuta setup-server.sh primero, o crea $CONFIG_FILE manualmente."
-    err ""
-    err "Formato requerido:"
-    err "  STORAGE_ACCOUNT=\"mi-cuenta\""
-    err "  CONTAINER_NAME=\"mi-contenedor\""
-    err "  BASE_URL=\"https://mi-cuenta.blob.core.windows.net/mi-contenedor\""
+  # STORAGE_ACCOUNT
+  read -rp "Cuenta de Azure Storage: " STORAGE_ACCOUNT
+  if [[ -z "$STORAGE_ACCOUNT" ]]; then
+    err "La cuenta de Azure Storage es obligatoria."
     exit 1
   fi
 
-  # shellcheck source=/dev/null
-  source "$CONFIG_FILE"
-
-  local required=(STORAGE_ACCOUNT CONTAINER_NAME BASE_URL)
-  local missing=()
-  for var in "${required[@]}"; do
-    if [[ -z "${!var:-}" ]]; then
-      missing+=("$var")
-    fi
-  done
-
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    err "Variables requeridas no definidas en $CONFIG_FILE:"
-    for var in "${missing[@]}"; do
-      err "  - $var"
-    done
+  # CONTAINER_NAME
+  read -rp "Nombre del contenedor: " CONTAINER_NAME
+  if [[ -z "$CONTAINER_NAME" ]]; then
+    err "El nombre del contenedor es obligatorio."
     exit 1
   fi
 
-  # Quitar trailing slash de BASE_URL si lo tiene
-  BASE_URL="${BASE_URL%/}"
+  # BASE_URL siempre se deriva de lo ingresado
+  BASE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}"
 
-  ok "Config: cuenta=${STORAGE_ACCOUNT} | contenedor=${CONTAINER_NAME}"
+  ok "Cuenta: ${STORAGE_ACCOUNT} | Contenedor: ${CONTAINER_NAME}"
 }
 
 request_sas() {
@@ -86,7 +86,6 @@ request_sas() {
     exit 1
   fi
 
-  # Normalizar: quitar '?' inicial si está presente
   SAS_TOKEN="${SAS_TOKEN#\?}"
 
   if [[ ${#SAS_TOKEN} -lt 20 ]]; then
@@ -95,24 +94,6 @@ request_sas() {
   fi
 
   log "SAS token recibido: ${#SAS_TOKEN} caracteres (...${SAS_TOKEN: -6})"
-}
-
-validate_azcopy() {
-  step "Validando azcopy"
-
-  if ! command -v azcopy &>/dev/null; then
-    err "azcopy no está instalado o no está en PATH."
-    err ""
-    err "Opciones de instalación:"
-    err "  1) Ejecuta setup-server.sh (instala azcopy automáticamente)"
-    err "  2) Descarga manual desde: https://aka.ms/downloadazcopy-v10-linux"
-    err "     tar -xzf azcopy.tar.gz && mv azcopy*/azcopy /usr/local/bin/ && chmod +x /usr/local/bin/azcopy"
-    exit 1
-  fi
-
-  local azcopy_version
-  azcopy_version="$(azcopy --version 2>/dev/null | head -1 || echo "desconocida")"
-  ok "azcopy disponible: $azcopy_version"
 }
 
 select_project() {
@@ -137,41 +118,55 @@ select_project() {
 get_latest_version() {
   step "Detectando versiones existentes en Azure"
 
-  local container_sas_url="${BASE_URL}?${SAS_TOKEN}"
+  # REST API: List Blobs con prefix para filtrar por componente
+  # GET https://<account>.blob.core.windows.net/<container>?restype=container&comp=list&prefix=<component>/
+  local list_url="${BASE_URL}?restype=container&comp=list&prefix=${COMPONENT}/&${SAS_TOKEN}"
 
-  log "Consultando Azure Blob Storage..."
+  log "Consultando Azure Blob Storage REST API..."
 
-  local list_output
-  if ! list_output=$(azcopy list "$container_sas_url" 2>&1); then
-    # Si el contenedor está vacío, azcopy puede retornar error o vacío
-    if echo "$list_output" | grep -qi "no blobs\|BlobNotFound\|ContainerNotFound"; then
-      LATEST_VERSION=""
-      warn "El contenedor está vacío o no contiene releases del componente $COMPONENT."
-      return
-    fi
-    err "Error al consultar Azure:"
-    err "$list_output"
+  local tmp_response http_code
+  tmp_response="$(mktemp)"
+
+  http_code=$(curl -s \
+    -H "x-ms-version: ${AZURE_API_VERSION}" \
+    -w "%{http_code}" \
+    -o "$tmp_response" \
+    "$list_url")
+
+  if [[ "$http_code" != "200" ]]; then
+    local error_body
+    error_body="$(cat "$tmp_response")"
+    rm -f "$tmp_response"
+    err "Error al listar blobs (HTTP $http_code):"
+    err "$error_body"
     err ""
     err "Verifica:"
     err "  1) El SAS token tiene permisos de Read + List"
-    err "  2) La cuenta '$STORAGE_ACCOUNT' y contenedor '$CONTAINER_NAME' existen"
+    err "  2) La cuenta '${STORAGE_ACCOUNT}' y contenedor '${CONTAINER_NAME}' existen"
     err "  3) El SAS token no ha expirado"
     exit 1
   fi
 
-  # Extraer versiones del componente desde output de azcopy list
-  # Formato de línea: "INFO: frontend/1.0.0/app.rar; Last Modified: ..."
-  # Extraemos el segmento VERSION entre <COMPONENT>/ y /app.rar
+  local response
+  response="$(cat "$tmp_response")"
+  rm -f "$tmp_response"
+
+  # El XML de respuesta contiene entradas como:
+  #   <Name>frontend/1.0.0/app.rar</Name>
+  # Extraemos la parte de versión entre <COMPONENT>/ y /app.rar
   mapfile -t ALL_VERSIONS < <(
-    echo "$list_output" \
-      | grep -oE "${COMPONENT}/[0-9]+\.[0-9]+\.[0-9]+/app\.rar" \
+    echo "$response" \
+      | grep -oE "<Name>[^<]+</Name>" \
+      | sed 's|<Name>||;s|</Name>||' \
+      | grep -E "^${COMPONENT}/[0-9]+\.[0-9]+\.[0-9]+/app\.rar$" \
       | sed -E "s|^${COMPONENT}/||;s|/app\.rar$||" \
-      | sort -Vu
+      | sort -Vu \
+    || true
   )
 
   if [[ ${#ALL_VERSIONS[@]} -eq 0 ]]; then
     LATEST_VERSION=""
-    warn "No se encontraron versiones previas para '$COMPONENT'."
+    warn "No se encontraron versiones previas para '${COMPONENT}'."
     warn "La primera release será la versión 1.0.0."
   else
     LATEST_VERSION="${ALL_VERSIONS[-1]}"
@@ -199,10 +194,10 @@ validate_local_file() {
   step "Validación del archivo local"
 
   echo
-  read -rp "Ruta local al archivo app.rar: " LOCAL_FILE
+  read -rp "Ruta al archivo app.rar: " LOCAL_FILE
 
-  LOCAL_FILE="${LOCAL_FILE//\"/}"   # quitar comillas si el usuario las incluyó
-  LOCAL_FILE="${LOCAL_FILE// /\ }"  # escapar espacios (defensivo)
+  # Quitar comillas si el usuario las incluyó (arrastrar-y-soltar en Git Bash)
+  LOCAL_FILE="${LOCAL_FILE//\"/}"
 
   if [[ -z "$LOCAL_FILE" ]]; then
     err "La ruta del archivo es obligatoria."
@@ -229,36 +224,85 @@ validate_local_file() {
   ok "Archivo validado: $LOCAL_FILE ($filesize)"
 }
 
+check_blob_exists() {
+  # Devuelve 0 (true) si el blob ya existe, 1 (false) si no existe.
+  local blob_path="$1"
+  local url="${BASE_URL}/${blob_path}?${SAS_TOKEN}"
+
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X HEAD \
+    -H "x-ms-version: ${AZURE_API_VERSION}" \
+    "$url")
+
+  [[ "$http_code" == "200" ]]
+}
+
 upload_release() {
   step "Subiendo release a Azure"
 
   local blob_path="${COMPONENT}/${NEXT_VERSION}/app.rar"
-  local dest_url="${BASE_URL}/${blob_path}?${SAS_TOKEN}"
+  local upload_url="${BASE_URL}/${blob_path}?${SAS_TOKEN}"
 
   log "Origen  : $LOCAL_FILE"
-  log "Destino : ${COMPONENT}/${NEXT_VERSION}/app.rar"
+  log "Destino : ${blob_path}"
   log "Cuenta  : ${STORAGE_ACCOUNT} / ${CONTAINER_NAME}"
 
-  # --overwrite=false: falla si ya existe esa versión (seguridad)
-  if ! azcopy copy "$LOCAL_FILE" "$dest_url" \
-      --overwrite=false \
-      --put-md5 \
-      --log-level=ERROR; then
-    err "La subida falló."
-    err ""
-    err "Causas posibles:"
-    err "  1) La versión $NEXT_VERSION ya existe (usa --overwrite=true solo si es intencional)"
-    err "  2) El SAS token no tiene permiso de Write"
-    err "  3) Problema de red"
+  # Verificar si ya existe esa versión antes de subir
+  log "Verificando existencia previa del blob..."
+  if check_blob_exists "$blob_path"; then
+    err "La versión ${NEXT_VERSION} ya existe en Azure (${blob_path})."
+    err "Aborta para evitar sobreescritura accidental."
     exit 1
   fi
 
-  ok "Release subida exitosamente: ${COMPONENT}/${NEXT_VERSION}/app.rar"
+  log "Blob no existe — procediendo con la subida..."
+  echo
+
+  local tmp_response http_code
+  tmp_response="$(mktemp)"
+
+  # PUT blob — REST API de Azure Blob Storage
+  # --upload-file hace streaming del archivo (no carga todo en memoria)
+  # --progress-bar muestra progreso en stderr
+  http_code=$(curl \
+    --progress-bar \
+    -X PUT \
+    -H "x-ms-version: ${AZURE_API_VERSION}" \
+    -H "x-ms-blob-type: BlockBlob" \
+    -H "Content-Type: application/octet-stream" \
+    --upload-file "$LOCAL_FILE" \
+    -w "%{http_code}" \
+    -o "$tmp_response" \
+    "$upload_url")
+
+  echo  # salto de línea tras la barra de progreso
+
+  local response_body
+  response_body="$(cat "$tmp_response")"
+  rm -f "$tmp_response"
+
+  # Azure devuelve 201 Created en subida exitosa
+  if [[ "$http_code" != "201" ]]; then
+    err "La subida falló (HTTP $http_code)."
+    if [[ -n "$response_body" ]]; then
+      err "Respuesta de Azure:"
+      err "$response_body"
+    fi
+    err ""
+    err "Causas posibles:"
+    err "  1) El SAS token no tiene permiso de Write / Create"
+    err "  2) El SAS token expiró"
+    err "  3) Problema de red o archivo demasiado grande para un solo PUT"
+    exit 1
+  fi
+
+  ok "Release subida exitosamente: ${blob_path}"
 }
 
-# ----------------------------- MAIN ------------------------------------------
+# ── MAIN ───────────────────────────────────────────────────────────────────────
 
-validate_azcopy
+validate_curl
 load_config
 request_sas
 select_project
@@ -273,7 +317,7 @@ echo "  RESUMEN DE RELEASE"
 echo "========================================"
 printf "  Componente : %s\n"  "$COMPONENT"
 printf "  Versión    : %s\n"  "$NEXT_VERSION"
-if [[ -n "$LATEST_VERSION" ]]; then
+if [[ -n "${LATEST_VERSION:-}" ]]; then
   printf "  Anterior   : %s\n"  "$LATEST_VERSION"
 else
   printf "  Anterior   : (ninguna — primera release)\n"
@@ -293,5 +337,5 @@ fi
 upload_release
 
 echo
-log "Release $COMPONENT v${NEXT_VERSION} completada exitosamente."
-log "Ahora puedes ejecutar 'Update' desde ops-menu.sh para deployar esta versión."
+log "Release ${COMPONENT} v${NEXT_VERSION} completada exitosamente."
+log "Ejecuta el update desde ops-menu.sh en el servidor para deployar esta versión."
