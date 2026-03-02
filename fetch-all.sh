@@ -5,7 +5,7 @@ set -e
 # Uso:
 #   bash fetch-all.sh https://raw.githubusercontent.com/usuario/repositorio/rama
 
-SCRIPTS=(ops-menu.sh install.sh update.sh rollback.sh uninstall.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh set-scripts-url.sh configure-internal-https.sh setup-server.sh release.sh)
+SCRIPTS=(ops-menu.sh install.sh update.sh rollback.sh uninstall.sh healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh set-scripts-url.sh configure-internal-https.sh setup-server.sh release.sh check-db.sh)
 
 if [[ -z "$1" ]]; then
   read -rp "Introduce la URL base raw de GitHub: " BASE_URL

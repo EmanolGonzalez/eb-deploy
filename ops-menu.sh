@@ -127,6 +127,7 @@ while true; do
     "Rollback" \
     "Uninstall" \
     "Set DB connection" \
+    "Check DB connection" \
     "Set backend health endpoint" \
     "Set scripts URL" \
     "Configurar HTTPS interno" \
@@ -159,6 +160,9 @@ while true; do
       ;;
     "Set DB connection")
       run_script "set-db-connection.sh"
+      ;;
+    "Check DB connection")
+      run_script "check-db.sh"
       ;;
     "Set backend health endpoint")
       run_script "set-health-endpoint.sh"
