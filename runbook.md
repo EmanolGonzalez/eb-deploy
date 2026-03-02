@@ -182,13 +182,17 @@ bash release.sh
 ```
 
 El script:
-1. Valida que `azcopy` esté instalado
-2. Lee `config.env` para obtener la cuenta de Azure
+1. Valida que `curl` esté disponible (incluido con Git for Windows)
+2. Solicita la cuenta de Azure Storage y el nombre del contenedor
 3. Solicita el SAS token de forma interactiva (input oculto, nunca se almacena)
-4. Detecta la última versión subida y calcula la siguiente automáticamente (semver patch)
-5. Pide la ruta local al archivo `app.rar` (debe llamarse exactamente `app.rar`)
+4. Detecta la última versión subida vía Azure Blob REST API y calcula la siguiente automáticamente (semver patch)
+5. Ofrece dos opciones para el artifact:
+   - **Build automático**: compila/publica el componente localmente con `npm run build` (frontend) o `dotnet publish` (backend), empaqueta el resultado en `app.rar` con WinRAR y lo sube
+   - **Manual**: pide la ruta a un `app.rar` ya construido
 6. Muestra un resumen y solicita confirmación
-7. Sube el artifact a Azure: `<componente>/<version>/app.rar`
+7. Sube el artifact a Azure via REST API (PUT Blob): `<componente>/<version>/app.rar`
+
+> **Nota:** `release.sh` usa `curl` + Azure Blob REST API (no `azcopy`). Esto es intencional: se ejecuta desde máquinas Windows de desarrollo donde `azcopy` no está instalado. Los scripts del servidor (`install.sh`, `update.sh`) sí usan `azcopy`.
 
 ---
 
@@ -360,9 +364,11 @@ journalctl -u nginx -n 50
 [Dev / CI]                          [Servidor]
 
 release.sh                          mkdir /app/scripts
-  ├── azcopy list (versiones)        wget ops-menu.sh
+  ├── curl REST API (versiones)      wget ops-menu.sh
   ├── incrementa semver              bash ops-menu.sh → Actualizar scripts
-  └── azcopy copy (sube app.rar)       └── fetch-all efímero → descarga todos los scripts
+  ├── build local (npm/dotnet)         └── fetch-all efímero → descarga todos los scripts
+  ├── WinRAR → app.rar
+  └── curl PUT Blob (sube app.rar)
                                      bash setup-server.sh
                                        ├── instala Node, .NET, azcopy, Nginx, systemd
                                        └── crea /app/config/config.env

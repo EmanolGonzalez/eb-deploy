@@ -21,6 +21,8 @@ set -euo pipefail
 # =============================================================================
 
 AZURE_API_VERSION="2020-08-04"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GENERATED_RAR=""   # Ruta al app.rar generado localmente (se limpia al finalizar)
 
 # ── COLORES / LOGGING ──────────────────────────────────────────────────────────
 
@@ -224,6 +226,117 @@ validate_local_file() {
   ok "Archivo validado: $LOCAL_FILE ($filesize)"
 }
 
+find_rar_executable() {
+  if command -v rar &>/dev/null; then
+    RAR_EXE="rar"
+    ok "WinRAR (rar) encontrado en PATH."
+    return
+  fi
+
+  local candidates=(
+    "/c/Program Files/WinRAR/rar.exe"
+    "/c/Program Files (x86)/WinRAR/rar.exe"
+  )
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      RAR_EXE="$candidate"
+      ok "WinRAR encontrado: $RAR_EXE"
+      return
+    fi
+  done
+
+  err "rar.exe no encontrado."
+  err "Instala WinRAR y verifica que esté en PATH o en 'C:\\Program Files\\WinRAR\\'."
+  exit 1
+}
+
+build_frontend() {
+  local dist_dir="${REPO_ROOT}/frontend/dist"
+
+  log "Compilando frontend (npm run build)..."
+  if ! (cd "${REPO_ROOT}/frontend" && npm run build); then
+    err "La compilación del frontend falló."
+    exit 1
+  fi
+
+  if [[ ! -d "$dist_dir" ]]; then
+    err "Directorio dist no encontrado tras el build: $dist_dir"
+    exit 1
+  fi
+  ok "Frontend compilado: $dist_dir"
+
+  log "Empaquetando frontend en app.rar..."
+  GENERATED_RAR="${REPO_ROOT}/app.rar"
+  rm -f "$GENERATED_RAR"
+
+  # Entramos en dist/ para que los archivos queden en la raíz del RAR
+  # (sin prefijo dist/), tal como espera el servidor al extraer con unrar x
+  (cd "$dist_dir" && "$RAR_EXE" a -r "$GENERATED_RAR" .)
+
+  ok "app.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
+}
+
+build_backend() {
+  local publish_dir="${REPO_ROOT}/backend/publish"
+
+  log "Publicando backend (dotnet publish)..."
+  if ! dotnet publish "${REPO_ROOT}/backend/Api/Api.csproj" \
+      -c Release \
+      -o "$publish_dir" \
+      --nologo; then
+    err "La publicación del backend falló."
+    exit 1
+  fi
+
+  if [[ ! -d "$publish_dir" ]]; then
+    err "Directorio publish no encontrado: $publish_dir"
+    exit 1
+  fi
+  ok "Backend publicado: $publish_dir"
+
+  log "Empaquetando backend en app.rar..."
+  GENERATED_RAR="${REPO_ROOT}/app.rar"
+  rm -f "$GENERATED_RAR"
+
+  # Entramos en backend/ para que publish/ quede como directorio raíz en el RAR.
+  # El servidor accede a ${RELEASE_DIR}/publish/appsettings.json, por eso
+  # publish/ debe ser el directorio raíz dentro del archivo.
+  (cd "${REPO_ROOT}/backend" && "$RAR_EXE" a -r "$GENERATED_RAR" publish/)
+
+  ok "app.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
+}
+
+offer_build_or_provide() {
+  step "Origen del artifact"
+
+  echo "  1) Construir y empaquetar localmente (build automático)"
+  echo "  2) Usar un app.rar ya construido (ruta manual)"
+  echo
+
+  while true; do
+    read -rp "Opción [1/2]: " opt
+    case "$opt" in
+      1)
+        find_rar_executable
+        if [[ "$COMPONENT" == "frontend" ]]; then
+          build_frontend
+        else
+          build_backend
+        fi
+        LOCAL_FILE="$GENERATED_RAR"
+        return
+        ;;
+      2)
+        validate_local_file
+        return
+        ;;
+      *)
+        warn "Introduce 1 (build automático) o 2 (ruta manual)."
+        ;;
+    esac
+  done
+}
+
 check_blob_exists() {
   # Devuelve 0 (true) si el blob ya existe, 1 (false) si no existe.
   local blob_path="$1"
@@ -308,7 +421,7 @@ request_sas
 select_project
 get_latest_version
 increment_version "${LATEST_VERSION:-0.0.0}"
-validate_local_file
+offer_build_or_provide
 
 # Resumen antes de confirmar
 echo
@@ -335,6 +448,12 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 fi
 
 upload_release
+
+# Eliminar app.rar generado automáticamente (no es necesario conservarlo)
+if [[ -n "${GENERATED_RAR:-}" && -f "${GENERATED_RAR}" ]]; then
+  rm -f "${GENERATED_RAR}"
+  log "app.rar temporal eliminado."
+fi
 
 echo
 log "Release ${COMPONENT} v${NEXT_VERSION} completada exitosamente."
