@@ -301,23 +301,66 @@ if ! command -v dotnet &>/dev/null || ! dotnet --list-sdks 2>/dev/null | grep -q
 fi
 ok ".NET: $(dotnet --version)"
 
-# 4. azcopy
+# 4. sqlcmd (mssql-tools18)
+install_sqlcmd() {
+  if command -v sqlcmd &>/dev/null; then
+    ok "sqlcmd ya instalado: $(sqlcmd -? 2>/dev/null | head -1 || echo 'ok')"
+    return
+  fi
+
+  log "Instalando sqlcmd (mssql-tools18)..."
+
+  # Importar clave GPG de Microsoft
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+
+  # Detectar distro y versión para elegir el repositorio correcto
+  local distro version
+  # shellcheck source=/dev/null
+  source /etc/os-release
+  distro="${ID}"          # ubuntu / debian
+  version="${VERSION_ID}" # 22.04 / 12 / etc.
+
+  local repo_url="https://packages.microsoft.com/config/${distro}/${version}/prod.list"
+  if ! curl -fsSL "$repo_url" -o /etc/apt/sources.list.d/mssql-release.list; then
+    warn "No se pudo agregar el repositorio de Microsoft para ${distro} ${version}."
+    warn "sqlcmd no estará disponible. Instálalo manualmente si es necesario."
+    return
+  fi
+
+  apt-get update -qq
+  ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 unixodbc-dev
+
+  # Agregar al PATH del sistema para todos los usuarios
+  echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' \
+    > /etc/profile.d/mssql-tools.sh
+  chmod +x /etc/profile.d/mssql-tools.sh
+
+  # Disponible en la sesión actual también
+  export PATH="$PATH:/opt/mssql-tools18/bin"
+
+  ok "sqlcmd instalado: $(sqlcmd -? 2>/dev/null | head -1 || echo 'ok')"
+}
+
+install_sqlcmd
+
+# 6. azcopy
 install_azcopy
 
-# 5. Nginx
+# 7. Nginx
 log "Habilitando nginx..."
 systemctl enable --now nginx
 ok "nginx activo."
 
-# 6. Estructura de directorios
+# 8. Estructura de directorios
 log "Creando estructura /app/..."
 mkdir -p "$SCRIPTS_DIR" /app/releases /app/config
 ok "Directorios creados."
 
-# 7. Configuración centralizada
+# 9. Configuración centralizada
 setup_config
 
-# 8. Descarga de scripts (fetch-all efímero)
+# 10. Descarga de scripts (fetch-all efímero)
 cd "$SCRIPTS_DIR"
 
 SCRIPTS_URL="${SCRIPTS_BASE_URL:-}"
