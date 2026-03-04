@@ -30,6 +30,11 @@ step() { echo; echo -e "\033[1;37m--- $* ---\033[0m"; }
 
 OS_TYPE="unknown"
 
+# mssql-tools18 se instala en /opt/mssql-tools18/bin — no siempre está en PATH
+# en sesiones no-login (ej: bash ops-menu.sh). Se agrega aquí si existe.
+[[ -d "/opt/mssql-tools18/bin" ]] && export PATH="$PATH:/opt/mssql-tools18/bin"
+[[ -d "/opt/mssql-tools/bin"   ]] && export PATH="$PATH:/opt/mssql-tools/bin"
+
 detect_os() {
   local kernel
   kernel="$(uname -s 2>/dev/null || echo "unknown")"

@@ -12,6 +12,7 @@ SCRIPTS_DIR="/app/scripts"
 log()  { echo -e "\033[1;34m==> $*\033[0m"; }
 err()  { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 ok()   { echo -e "\033[1;32m OK  $*\033[0m"; }
+warn() { echo -e "\033[1;33mWARN $*\033[0m"; }
 
 require_root() {
   if [[ "$EUID" -ne 0 ]]; then
