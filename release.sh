@@ -188,8 +188,23 @@ increment_version() {
 
   local major minor patch
   IFS='.' read -r major minor patch <<< "$base_version"
-  patch=$(( patch + 1 ))
-  NEXT_VERSION="${major}.${minor}.${patch}"
+
+  step "Tipo de versión"
+  echo "  Versión actual: $base_version"
+  echo "  1) patch  → $major.$minor.$(( patch + 1 ))"
+  echo "  2) minor  → $major.$(( minor + 1 )).0"
+  echo "  3) major  → $(( major + 1 )).0.0"
+  echo
+
+  while true; do
+    read -rp "Tipo de incremento [1/2/3]: " bump
+    case "$bump" in
+      1) NEXT_VERSION="$major.$minor.$(( patch + 1 ))"; break ;;
+      2) NEXT_VERSION="$major.$(( minor + 1 )).0";      break ;;
+      3) NEXT_VERSION="$(( major + 1 )).0.0";           break ;;
+      *) warn "Introduce 1 (patch), 2 (minor) o 3 (major)." ;;
+    esac
+  done
 }
 
 validate_local_file() {
