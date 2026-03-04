@@ -375,7 +375,7 @@ apply_db_connection_if_backend() {
     log "Sin cadena de conexión configurada. appsettings.json no será modificado."
     return
   }
-  apply_connection_string_to_file "${RELEASE_DIR}/publish/appsettings.json" "$DB_CONNECTION_STRING"
+  apply_connection_string_to_file "${RELEASE_DIR}/appsettings.json" "$DB_CONNECTION_STRING"
 }
 
 apply_db_connection_to_previous_if_backend() {
@@ -384,7 +384,7 @@ apply_db_connection_to_previous_if_backend() {
   [[ -z "${DB_CONNECTION_STRING:-}" ]] && return
   [[ -z "${PREVIOUS_VERSION:-}" ]] && return
 
-  local prev_appsettings="${INSTALL_BASE}/releases/${COMPONENT}/${PREVIOUS_VERSION}/publish/appsettings.json"
+  local prev_appsettings="${INSTALL_BASE}/releases/${COMPONENT}/${PREVIOUS_VERSION}/appsettings.json"
   if [[ -f "$prev_appsettings" ]]; then
     apply_connection_string_to_file "$prev_appsettings" "$DB_CONNECTION_STRING"
   fi

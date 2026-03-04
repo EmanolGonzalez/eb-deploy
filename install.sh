@@ -324,7 +324,7 @@ apply_db_connection_if_backend() {
     log "Sin cadena de conexión configurada. appsettings.json no será modificado."
     return
   }
-  apply_connection_string_to_file "${RELEASE_DIR}/publish/appsettings.json" "$DB_CONNECTION_STRING"
+  apply_connection_string_to_file "${RELEASE_DIR}/appsettings.json" "$DB_CONNECTION_STRING"
 }
 
 # ----------------------------- MAIN ------------------------------------------

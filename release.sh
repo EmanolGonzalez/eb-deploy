@@ -298,10 +298,9 @@ build_backend() {
   GENERATED_RAR="${REPO_ROOT}/app.rar"
   rm -f "$GENERATED_RAR"
 
-  # Entramos en backend/ para que publish/ quede como directorio raíz en el RAR.
-  # El servidor accede a ${RELEASE_DIR}/publish/appsettings.json, por eso
-  # publish/ debe ser el directorio raíz dentro del archivo.
-  (cd "${REPO_ROOT}/backend" && "$RAR_EXE" a -r "$GENERATED_RAR" publish/)
+  # Entramos en publish/ para que los archivos queden en la raíz del RAR,
+  # igual que el frontend. El servidor accede a ${RELEASE_DIR}/Api.dll directamente.
+  (cd "$publish_dir" && "$RAR_EXE" a -r "$GENERATED_RAR" .)
 
   ok "app.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
 }

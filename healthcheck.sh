@@ -67,7 +67,7 @@ if [[ "$COMPONENT" == "frontend" ]]; then
 fi
 
 APP_NAME="backend"
-BACKEND_RELEASE_DIR="/app/backend/current/publish"
+BACKEND_RELEASE_DIR="/app/backend/current"
 MAX_RETRIES="${HEALTHCHECK_RETRIES:-20}"
 SLEEP_SECONDS="${HEALTHCHECK_SLEEP_SECONDS:-3}"
 

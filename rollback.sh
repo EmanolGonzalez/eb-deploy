@@ -147,7 +147,7 @@ apply_db_connection_if_backend() {
   [[ "$COMPONENT" != "backend" ]] && return
   [[ -z "${DB_CONNECTION_STRING:-}" ]] && return
 
-  local appsettings="${PREVIOUS_RELEASE_DIR}/publish/appsettings.json"
+  local appsettings="${PREVIOUS_RELEASE_DIR}/appsettings.json"
   if [[ -f "$appsettings" ]]; then
     apply_connection_string_to_file "$appsettings" "$DB_CONNECTION_STRING"
   else

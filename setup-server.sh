@@ -427,8 +427,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/dotnet /app/backend/current/publish/Api.dll
-WorkingDirectory=/app/backend/current/publish
+ExecStart=/usr/bin/dotnet /app/backend/current/Api.dll
+WorkingDirectory=/app/backend/current
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://+:5000
 Restart=always
