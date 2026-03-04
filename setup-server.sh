@@ -429,6 +429,8 @@ After=network.target
 Type=simple
 ExecStart=/usr/bin/dotnet /app/backend/current/publish/Api.dll
 WorkingDirectory=/app/backend/current/publish
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://+:5000
 Restart=always
 RestartSec=5
 StandardOutput=journal

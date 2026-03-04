@@ -48,7 +48,7 @@ parse_args "$@"
 
 if [[ "$COMPONENT" == "frontend" ]]; then
   FRONTEND_CURRENT_LINK="/app/frontend/current"
-  FRONTEND_INDEX_FILE="${FRONTEND_CURRENT_LINK}/dist/index.html"
+  FRONTEND_INDEX_FILE="${FRONTEND_CURRENT_LINK}/index.html"
 
   echo "==> Checking frontend current symlink $FRONTEND_CURRENT_LINK"
   if [[ ! -L "$FRONTEND_CURRENT_LINK" ]]; then

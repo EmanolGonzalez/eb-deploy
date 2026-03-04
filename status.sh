@@ -149,7 +149,7 @@ check_backend_running() {
 }
 
 check_frontend_running() {
-  local frontend_index="/app/frontend/current/dist/index.html"
+  local frontend_index="/app/frontend/current/index.html"
 
   if [[ -f "$frontend_index" ]]; then
     FRONTEND_FILES_OK=true
