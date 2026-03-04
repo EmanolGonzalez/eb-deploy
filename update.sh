@@ -166,13 +166,17 @@ ensure_db_connection_for_backend() {
     log "Cadena de conexión actual: $(connection_summary "$DB_CONNECTION_STRING")"
     arrow_select "¿Qué deseas hacer con la cadena de conexión?" \
       "Usar cadena guardada" "Ingresar otra"
-    [[ "$ARROW_SELECTION" == "Ingresar otra" ]] && prompt_new_db_connection_string
+    if [[ "$ARROW_SELECTION" == "Ingresar otra" ]]; then
+      prompt_new_db_connection_string
+    fi
     return
   fi
 
   arrow_select "No hay cadena de conexión guardada para backend." \
     "Ingresar ahora" "Continuar sin definir"
-  [[ "$ARROW_SELECTION" == "Ingresar ahora" ]] && prompt_new_db_connection_string
+  if [[ "$ARROW_SELECTION" == "Ingresar ahora" ]]; then
+    prompt_new_db_connection_string
+  fi
 }
 
 escape_for_sed_replacement() {
