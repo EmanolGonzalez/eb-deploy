@@ -417,7 +417,7 @@ NGINXEOF
   ok "Nginx configurado."
 fi
 
-# 10. Servicio systemd backend
+# 11. Servicio systemd backend
 if [[ ! -f /etc/systemd/system/backend.service ]]; then
   log "Configurando servicio systemd backend..."
   cat > /etc/systemd/system/backend.service <<'SYSTEMDEOF'
