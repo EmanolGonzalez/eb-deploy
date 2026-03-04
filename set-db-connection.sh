@@ -102,7 +102,7 @@ update_config_value "DB_CONNECTION_STRING" "$CONNECTION_STRING"
 ok "DB_CONNECTION_STRING guardada en $CONFIG_FILE"
 
 # Aplicar en el backend actual si existe
-CURRENT_APPSETTINGS="/app/backend/current/publish/appsettings.json"
+CURRENT_APPSETTINGS="/app/backend/current/appsettings.json"
 if [[ -f "$CURRENT_APPSETTINGS" ]]; then
   apply_connection_string_to_file "$CURRENT_APPSETTINGS" "$CONNECTION_STRING"
   read -rp "¿Reiniciar el servicio backend ahora? [Y/n]: " restart_now
