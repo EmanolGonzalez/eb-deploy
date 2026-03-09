@@ -398,8 +398,7 @@ FETCH_TMP="$(mktemp /tmp/fetch-all-XXXXXX.sh)"
 trap 'rm -f "$FETCH_TMP"' EXIT
 
 log "Descargando scripts vía fetch-all (efímero)..."
-if wget -q -O "$FETCH_TMP" "$SCRIPTS_URL/fetch-all.sh" 2>/dev/null \
-    && grep -q '^#!/' "$FETCH_TMP" 2>/dev/null; then
+if wget -q -O "$FETCH_TMP" "$SCRIPTS_URL/fetch-all.sh" 2>/dev/null && grep -q '^#!/' "$FETCH_TMP" 2>/dev/null; then
   chmod +x "$FETCH_TMP"
   if ! bash "$FETCH_TMP" "$SCRIPTS_URL"; then
     err "fetch-all.sh terminó con error. Usando descarga directa..."
