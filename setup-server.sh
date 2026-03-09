@@ -21,6 +21,30 @@ require_root() {
   fi
 }
 
+require_internet() {
+  if ! command -v curl &>/dev/null; then
+    err "No se encontró 'curl' en el sistema. Instálalo y vuelve a ejecutar el setup."
+    exit 1
+  fi
+
+  local urls=(
+    "https://deb.debian.org"
+    "https://packages.microsoft.com"
+    "https://aka.ms"
+  )
+
+  for url in "${urls[@]}"; do
+    if curl -I --silent --fail --max-time 7 "$url" >/dev/null 2>&1; then
+      ok "Conectividad a internet verificada (${url})."
+      return
+    fi
+  done
+
+  err "No se detecto conexion a internet en la VM. No se puede continuar con setup-server.sh."
+  err "Verifica DNS, salida a internet y reglas de firewall/proxy, y vuelve a intentar."
+  exit 1
+}
+
 escape_for_sed_replacement() {
   local input="$1"
   input="${input//\\/\\\\}"
@@ -274,6 +298,7 @@ download_scripts_fallback() {
 # =============================================================================
 
 require_root
+require_internet
 
 # 1. Sistema base
 log "Actualizando sistema e instalando dependencias base..."
