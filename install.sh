@@ -216,6 +216,15 @@ version_is_newer() {
     [[ "$(printf '%s\n%s\n' "$current" "$candidate" | sort -V | tail -n1)" == "$candidate" ]]
 }
 
+version_exists_in_list() {
+  local target="$1"; shift
+  local values=("$@")
+  for v in "${values[@]}"; do
+    [[ "$v" == "$target" ]] && return 0
+  done
+  return 1
+}
+
 list_versions() {
   local container_sas_url="${BASE_URL}?${SAS_TOKEN}"
   log "Listando versiones disponibles para '$COMPONENT' en Azure..."
@@ -234,37 +243,64 @@ list_versions() {
     exit 1
   fi
 
-  mapfile -t VERSIONS < <(
+  mapfile -t ALL_VERSIONS < <(
     echo "$list_output" \
       | grep -oE "${COMPONENT}/[0-9]+\.[0-9]+\.[0-9]+/app\.rar" \
       | sed -E "s|^${COMPONENT}/||;s|/app\.rar\$||" \
       | sort -Vu
   )
 
-  if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+  if [[ ${#ALL_VERSIONS[@]} -eq 0 ]]; then
     err "No se encontraron versiones para '$COMPONENT' en Azure."
     err "Ejecuta release.sh desde la máquina de desarrollo para subir una versión."
     exit 1
   fi
 
-  log "Versiones encontradas: ${VERSIONS[*]}"
+  VERSIONS=("${ALL_VERSIONS[@]}")
+  log "Versiones encontradas: ${ALL_VERSIONS[*]}"
 
-  # Filtrar solo versiones mayores a la instalada actualmente
+  # Si hay una version instalada, ofrecer reinstall explicitamente.
   local current_link="${INSTALL_BASE}/${COMPONENT}/current"
   if [[ -L "$current_link" ]]; then
     CURRENT_VERSION="$(basename "$(readlink "$current_link")")"
     log "Versión instalada actualmente: $CURRENT_VERSION"
+
     local filtered=()
-    for v in "${VERSIONS[@]}"; do
+    for v in "${ALL_VERSIONS[@]}"; do
       version_is_newer "$v" "$CURRENT_VERSION" && filtered+=("$v")
     done
-    VERSIONS=("${filtered[@]}")
+
+    local choices=()
+    [[ ${#filtered[@]} -gt 0 ]] && choices+=("Instalar una version mas nueva")
+    version_exists_in_list "$CURRENT_VERSION" "${ALL_VERSIONS[@]}" \
+      && choices+=("Reinstalar actual ($CURRENT_VERSION)")
+    choices+=("Elegir cualquier version" "Cancelar")
+
+    arrow_select "¿Que deseas hacer?" "${choices[@]}"
+
+    case "$ARROW_SELECTION" in
+      "Instalar una version mas nueva")
+        VERSIONS=("${filtered[@]}")
+        log "Versiones mas nuevas disponibles: ${VERSIONS[*]}"
+        ;;
+      "Reinstalar actual ($CURRENT_VERSION)")
+        VERSIONS=("$CURRENT_VERSION")
+        log "Se reinstalara la version actual: $CURRENT_VERSION"
+        ;;
+      "Elegir cualquier version")
+        VERSIONS=("${ALL_VERSIONS[@]}")
+        log "Versiones disponibles para seleccion: ${VERSIONS[*]}"
+        ;;
+      "Cancelar")
+        log "Instalacion cancelada."
+        exit 0
+        ;;
+    esac
+
     if [[ ${#VERSIONS[@]} -eq 0 ]]; then
-      err "No hay versiones más nuevas disponibles en Azure."
-      err "Versión actual: $CURRENT_VERSION"
+      err "No hay versiones disponibles para la opcion elegida."
       exit 1
     fi
-    log "Versiones más nuevas disponibles: ${VERSIONS[*]}"
   fi
 }
 
