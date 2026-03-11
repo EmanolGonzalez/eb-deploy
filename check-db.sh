@@ -19,6 +19,7 @@ set -euo pipefail
 # =============================================================================
 
 CONFIG_FILE="/app/config/config.env"
+SQLCMD_BIN=""
 
 log()  { echo -e "\033[1;34m==> $*\033[0m"; }
 err()  { echo -e "\033[1;31mERR  $*\033[0m" >&2; }
@@ -30,10 +31,34 @@ step() { echo; echo -e "\033[1;37m--- $* ---\033[0m"; }
 
 OS_TYPE="unknown"
 
-# mssql-tools18 se instala en /opt/mssql-tools18/bin — no siempre está en PATH
-# en sesiones no-login (ej: bash ops-menu.sh). Se agrega aquí si existe.
-[[ -d "/opt/mssql-tools18/bin" ]] && export PATH="$PATH:/opt/mssql-tools18/bin"
-[[ -d "/opt/mssql-tools/bin"   ]] && export PATH="$PATH:/opt/mssql-tools/bin"
+add_sqlcmd_dirs_to_path() {
+  local dir
+  for dir in "/opt/mssql-tools18/bin" "/opt/mssql-tools/bin"; do
+    if [[ -d "$dir" ]] && [[ ":$PATH:" != *":$dir:"* ]]; then
+      export PATH="$PATH:$dir"
+    fi
+  done
+}
+
+resolve_sqlcmd() {
+  add_sqlcmd_dirs_to_path
+
+  if command -v sqlcmd &>/dev/null; then
+    SQLCMD_BIN="$(command -v sqlcmd)"
+    return 0
+  fi
+
+  local candidate
+  for candidate in "/opt/mssql-tools18/bin/sqlcmd" "/opt/mssql-tools/bin/sqlcmd"; do
+    if [[ -x "$candidate" ]]; then
+      SQLCMD_BIN="$candidate"
+      return 0
+    fi
+  done
+
+  SQLCMD_BIN=""
+  return 1
+}
 
 detect_os() {
   local kernel
@@ -208,8 +233,8 @@ check_tcp() {
 # ── TEST 3: AUTENTICACIÓN SQL ──────────────────────────────────────────────────
 
 check_sql_auth() {
-  if ! command -v sqlcmd &>/dev/null; then
-    warn "sqlcmd no está en PATH — test de autenticación SQL omitido."
+  if ! resolve_sqlcmd; then
+    warn "sqlcmd no fue encontrado ni en PATH ni en rutas conocidas — test de autenticación SQL omitido."
     warn "Instala mssql-tools (Linux) o SQL Server tools (Windows) para habilitarlo."
     return 0
   fi
@@ -221,9 +246,10 @@ check_sql_auth() {
   fi
 
   log "Probando autenticación SQL con sqlcmd (SELECT 1)..."
+  log "Usando sqlcmd en: $SQLCMD_BIN"
 
   local output exit_code=0
-  output="$(sqlcmd \
+  output="$("$SQLCMD_BIN" \
     -S "${DB_HOST},${DB_PORT}" \
     -d "$DB_NAME" \
     -U "$DB_USER" \

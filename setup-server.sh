@@ -14,6 +14,43 @@ err()  { echo -e "\033[1;31mError: $*\033[0m" >&2; }
 ok()   { echo -e "\033[1;32m OK  $*\033[0m"; }
 warn() { echo -e "\033[1;33mWARN $*\033[0m"; }
 
+add_sqlcmd_dirs_to_path() {
+  local dir
+  for dir in "/opt/mssql-tools18/bin" "/opt/mssql-tools/bin"; do
+    if [[ -d "$dir" ]] && [[ ":$PATH:" != *":$dir:"* ]]; then
+      export PATH="$PATH:$dir"
+    fi
+  done
+}
+
+resolve_sqlcmd() {
+  add_sqlcmd_dirs_to_path
+
+  if command -v sqlcmd &>/dev/null; then
+    command -v sqlcmd
+    return 0
+  fi
+
+  local candidate
+  for candidate in "/opt/mssql-tools18/bin/sqlcmd" "/opt/mssql-tools/bin/sqlcmd"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+persist_sqlcmd_path() {
+  local profile_file="/etc/profile.d/mssql-tools.sh"
+  local profile_line='export PATH="$PATH:/opt/mssql-tools18/bin:/opt/mssql-tools/bin"'
+
+  mkdir -p /etc/profile.d
+  printf '%s\n' "$profile_line" > "$profile_file"
+  chmod +x "$profile_file"
+}
+
 require_root() {
   if [[ "$EUID" -ne 0 ]]; then
     err "Este script debe ejecutarse como root."
@@ -329,8 +366,11 @@ ok ".NET: $(dotnet --version)"
 
 # 4. sqlcmd (mssql-tools18)
 install_sqlcmd() {
-  if command -v sqlcmd &>/dev/null; then
-    ok "sqlcmd ya instalado: $(sqlcmd -? 2>/dev/null | head -1 || echo 'ok')"
+  local sqlcmd_bin=""
+
+  if sqlcmd_bin="$(resolve_sqlcmd 2>/dev/null)"; then
+    persist_sqlcmd_path
+    ok "sqlcmd ya instalado: $sqlcmd_bin"
     return
   fi
 
@@ -357,15 +397,17 @@ install_sqlcmd() {
   apt-get update -qq
   ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 unixodbc-dev
 
-  # Agregar al PATH del sistema para todos los usuarios
-  echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' \
-    > /etc/profile.d/mssql-tools.sh
-  chmod +x /etc/profile.d/mssql-tools.sh
+  persist_sqlcmd_path
+  add_sqlcmd_dirs_to_path
 
-  # Disponible en la sesión actual también
-  export PATH="$PATH:/opt/mssql-tools18/bin"
+  if sqlcmd_bin="$(resolve_sqlcmd 2>/dev/null)"; then
+    ok "sqlcmd instalado: $sqlcmd_bin"
+    return
+  fi
 
-  ok "sqlcmd instalado: $(sqlcmd -? 2>/dev/null | head -1 || echo 'ok')"
+  err "mssql-tools18 fue instalado, pero sqlcmd no fue encontrado en las rutas esperadas."
+  err "Verifica la instalación del paquete y el contenido de /opt/mssql-tools18/bin."
+  exit 1
 }
 
 install_sqlcmd
