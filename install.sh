@@ -67,6 +67,8 @@ update_config_value() {
 }
 
 load_config() {
+  local require_storage="${1:-true}"
+
   if [[ ! -f "$CONFIG_FILE" ]]; then
     err "Archivo de configuración no encontrado: $CONFIG_FILE"
     err "Ejecuta setup-server.sh para inicializar la configuración."
@@ -74,18 +76,23 @@ load_config() {
   fi
   # shellcheck source=/dev/null
   source "$CONFIG_FILE"
-  local required=(STORAGE_ACCOUNT CONTAINER_NAME BASE_URL)
-  local missing=()
-  for var in "${required[@]}"; do
-    [[ -z "${!var:-}" ]] && missing+=("$var")
-  done
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    err "Variables requeridas no definidas en $CONFIG_FILE:"
-    for var in "${missing[@]}"; do
-      err "  - $var"
+
+  if [[ "$require_storage" == "true" ]]; then
+    local required=(STORAGE_ACCOUNT CONTAINER_NAME BASE_URL)
+    local missing=()
+    for var in "${required[@]}"; do
+      [[ -z "${!var:-}" ]] && missing+=("$var")
     done
-    exit 1
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      err "Variables requeridas no definidas en $CONFIG_FILE:"
+      for var in "${missing[@]}"; do
+        err "  - $var"
+      done
+      exit 1
+    fi
   fi
+
+  BASE_URL="${BASE_URL:-}"
   BASE_URL="${BASE_URL%/}"
 }
 
@@ -97,6 +104,21 @@ validate_azcopy() {
     err "Ejecuta setup-server.sh para instalarlo automáticamente."
     exit 1
   fi
+}
+
+validate_download_client() {
+  if command -v curl &>/dev/null; then
+    DOWNLOAD_CLIENT="curl"
+    return
+  fi
+  if command -v wget &>/dev/null; then
+    DOWNLOAD_CLIENT="wget"
+    return
+  fi
+
+  err "No se encontró cliente de descarga (curl o wget)."
+  err "Instala curl o wget para usar instalación por URL directa."
+  exit 1
 }
 
 # ----------------------------- SAS TOKEN -------------------------------------
@@ -208,6 +230,77 @@ select_component() {
   COMPONENT="$ARROW_SELECTION"
 }
 
+select_install_source() {
+  arrow_select "Selecciona el origen del artefacto:" \
+    "Cloud (Azure Blob + SAS)" \
+    "URL o archivo .rar en servidor"
+
+  case "$ARROW_SELECTION" in
+    "Cloud (Azure Blob + SAS)")
+      SOURCE_MODE="cloud"
+      ;;
+    "URL o archivo .rar en servidor")
+      SOURCE_MODE="manual"
+      ;;
+    *)
+      err "Origen no soportado: $ARROW_SELECTION"
+      exit 1
+      ;;
+  esac
+}
+
+prompt_manual_artifact_source() {
+  read -rp "Ruta local o URL de app.rar: " ARTIFACT_SOURCE
+  if [[ -z "$ARTIFACT_SOURCE" ]]; then
+    err "Debes indicar una ruta local o URL."
+    exit 1
+  fi
+}
+
+prompt_manual_version() {
+  read -rp "Versión a instalar (ej: 1.2.3): " VERSION
+  if [[ -z "$VERSION" ]]; then
+    err "La versión es obligatoria en modo manual."
+    exit 1
+  fi
+
+  if [[ ! "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    err "Versión inválida. Usa solo letras, números, punto, guion y guion bajo."
+    exit 1
+  fi
+}
+
+download_manual_archive() {
+  local source="$1"
+  local target="$2"
+
+  if [[ "$source" =~ ^https?:// ]]; then
+    validate_download_client
+    log "Descargando artefacto desde URL..."
+
+    if [[ "$DOWNLOAD_CLIENT" == "curl" ]]; then
+      if ! curl -fL "$source" -o "$target"; then
+        err "No se pudo descargar el artefacto desde la URL indicada."
+        exit 1
+      fi
+    else
+      if ! wget -q -O "$target" "$source"; then
+        err "No se pudo descargar el artefacto desde la URL indicada."
+        exit 1
+      fi
+    fi
+    return
+  fi
+
+  if [[ ! -f "$source" ]]; then
+    err "Archivo no encontrado: $source"
+    exit 1
+  fi
+
+  log "Copiando artefacto local..."
+  cp "$source" "$target"
+}
+
 # ----------------------------- VERSIONES (azcopy) ----------------------------
 
 version_is_newer() {
@@ -312,20 +405,25 @@ select_version() {
 # ----------------------------- DESCARGA Y EXTRACCIÓN -------------------------
 
 download_and_extract() {
-  local blob_url="${BASE_URL}/${COMPONENT}/${VERSION}/app.rar?${SAS_TOKEN}"
   local releases_dir="${INSTALL_BASE}/releases/${COMPONENT}"
   local release_dir="${releases_dir}/${VERSION}"
   local tmp_archive="/tmp/${COMPONENT}-${VERSION}-$$.rar"
 
   mkdir -p "$release_dir"
 
-  log "Descargando ${COMPONENT}/${VERSION}/app.rar..."
-  if ! azcopy copy "$blob_url" "$tmp_archive" \
-      --overwrite=true \
-      --log-level=ERROR; then
-    err "Descarga fallida. Verifica el SAS token y la conectividad."
-    rm -f "$tmp_archive"
-    exit 1
+  if [[ "$SOURCE_MODE" == "cloud" ]]; then
+    local blob_url="${BASE_URL}/${COMPONENT}/${VERSION}/app.rar?${SAS_TOKEN}"
+
+    log "Descargando ${COMPONENT}/${VERSION}/app.rar desde Azure..."
+    if ! azcopy copy "$blob_url" "$tmp_archive" \
+        --overwrite=true \
+        --log-level=ERROR; then
+      err "Descarga fallida. Verifica el SAS token y la conectividad."
+      rm -f "$tmp_archive"
+      exit 1
+    fi
+  else
+    download_manual_archive "$ARTIFACT_SOURCE" "$tmp_archive"
   fi
 
   log "Extrayendo en $release_dir..."
@@ -370,17 +468,31 @@ apply_db_connection_if_backend() {
 # ----------------------------- MAIN ------------------------------------------
 
 require_root
-validate_azcopy
-load_config
-request_sas
+select_install_source
+
+if [[ "$SOURCE_MODE" == "cloud" ]]; then
+  validate_azcopy
+  load_config true
+  request_sas
+else
+  load_config false
+fi
+
 load_db_connection_if_exists
 select_component
 ensure_db_connection_for_backend
-list_versions
-select_version
+
+if [[ "$SOURCE_MODE" == "cloud" ]]; then
+  list_versions
+  select_version
+else
+  prompt_manual_artifact_source
+  prompt_manual_version
+fi
+
 download_and_extract
 apply_db_connection_if_backend
 update_symlink
 restart_service_if_backend
 
-log "Instalación de $COMPONENT v${VERSION} completada exitosamente."
+log "Instalación de $COMPONENT v${VERSION} completada exitosamente (origen: $SOURCE_MODE)."
