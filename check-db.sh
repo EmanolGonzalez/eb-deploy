@@ -254,6 +254,7 @@ check_sql_auth() {
     -d "$DB_NAME" \
     -U "$DB_USER" \
     -P "$DB_PASS" \
+    -C \
     -Q "SELECT 1" \
     -b \
     -t 10 \
