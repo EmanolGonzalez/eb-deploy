@@ -314,7 +314,7 @@ download_scripts_fallback() {
   # Se usa solo si fetch-all.sh falla o no se puede descargar
   local base_url="$1"
   local scripts=(
-    ops-menu.sh install.sh update.sh rollback.sh uninstall.sh
+    ops-menu.sh deploy.sh install.sh update.sh rollback.sh uninstall.sh
     healthcheck.sh status.sh set-db-connection.sh set-health-endpoint.sh
     configure-internal-https.sh setup-server.sh release.sh
   )
