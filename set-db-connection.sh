@@ -46,6 +46,7 @@ escape_for_sed_replacement() {
   local input="$1"
   input="${input//\\/\\\\}"
   input="${input//&/\\&}"
+  input="${input//#/\\#}"
   printf '%s' "$input"
 }
 
