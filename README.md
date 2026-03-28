@@ -2,13 +2,7 @@
 
 Este directorio contiene los scripts operativos del proyecto.
 
-## Documentación oficial
-
-Toda la guía de despliegue, operación y mantenimiento está en:
-
-- [runbook.md](runbook.md)
-
-Usa siempre el runbook como fuente principal para pasos y procedimientos.
+La documentacion de despliegue y operacion vive en este proyecto, no en `docs/`.
 
 ## Scripts disponibles
 
