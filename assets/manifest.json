@@ -28,7 +28,7 @@
     }
   },
   "system_packages": {
-    "note": "These packages have complex dependency chains. For fully offline installs, pre-download .deb files on a similar system and place them in assets/packages/",
+    "note": "Self-contained offline bundle: assets/system/ contains the FULL recursive dependency closure (Ubuntu 24.04 amd64) for nginx, mariadb-client, unixodbc, libgd3, libxml2, libxslt1.1, curl, git, wget, tar (excluding only base priority required/important packages present on any Ubuntu). Works on a minimal/air-gapped Ubuntu 24.04. bootstrap.sh installs assets/system/*.deb first so shared deps (perl, fonts, libs) are present before the DB/nginx installs. Ship the folder, not a git checkout (.deb are gitignored).",
     "required": ["nginx", "unrar", "curl", "git", "wget", "tar"],
     "optional": ["mssql-tools18", "unixodbc-dev"]
   }
