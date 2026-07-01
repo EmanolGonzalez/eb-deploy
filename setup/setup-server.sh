@@ -531,6 +531,12 @@ EnvironmentFile=/app/config/config.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://+:5000
 
+# SkiaSharp/fontconfig: con ProtectSystem=strict + usuario sin home, fontconfig
+# no tiene donde escribir su cache ("Fontconfig error: No writable cache
+# directories"). PrivateTmp=yes da un /tmp privado escribible; lo usamos como
+# cache asi el render de texto de la cedula no se degrada.
+Environment=XDG_CACHE_HOME=/tmp
+
 # --- Filesystem isolation ---
 ProtectSystem=strict
 ProtectHome=yes
