@@ -1,0 +1,12 @@
+# Este repo se despliega en Linux (bash) y se shippea por FTP.
+# Forzar LF SIEMPRE: un checkout en Windows con core.autocrlf=true meteria
+# CRLF y rompe los scripts al correr en el servidor (\r en el shebang y en
+# cada linea -> "command not found" / errores raros).
+* text=auto eol=lf
+
+# Binarios/instaladores offline: nunca tocar (aunque suelen estar gitignoreados)
+*.deb    binary
+*.tar.gz binary
+*.tar.xz binary
+*.rar    binary
+*.zip    binary
