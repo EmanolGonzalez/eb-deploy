@@ -39,12 +39,26 @@ source "$BASE_DIR/core/input.sh" 2>/dev/null || source "$MODULES_DIR/../core/inp
   }
 }
 
+# P1: divider() se define aca como FALLBACK defensivo por si core/logger.sh no
+# se pudo sourcear (bloque de arriba). Si logger.sh cargo bien, esta redefinicion
+# es identica y no cambia comportamiento. Se mantiene a proposito por resiliencia.
 divider() { echo "========================================"; }
+
+# M5: linea de estado rapido del sistema. Todo defensivo (2>/dev/null + fallback)
+# para NO romper si el backend no esta instalado o systemctl no existe.
+show_status_line() {
+  local backend_state backend_ver
+  backend_state="$(systemctl is-active backend 2>/dev/null || echo 'unknown')"
+  backend_ver="$(readlink /app/backend/current 2>/dev/null | xargs -r basename 2>/dev/null || echo '?')"
+  [[ -z "$backend_ver" ]] && backend_ver='?'
+  echo "  Backend: ${backend_state} (v${backend_ver})"
+}
 
 while true; do
   echo
   divider
   echo "  EB Deploy Console"
+  show_status_line
   divider
   menu_select "Seleccione una accion:" \
     "Backend (install/update/rollback)" \
@@ -56,17 +70,19 @@ while true; do
     "Release" \
     "Salir"
 
+  # '|| true' en cada submenu: si un submenu sale non-zero (ej. exit 130 por
+  # Ctrl+C, o un comando que falla), NO queremos que 'set -e' cierre la consola
+  # principal. El operador debe volver al menu, no quedar afuera.
   case "$MENU_SELECTION" in
-    "Backend (install/update/rollback)")  bash "$MODULES_DIR/backend/menu.sh" ;;
-    "Frontend (install/update/rollback)") bash "$MODULES_DIR/frontend/menu.sh" ;;
-    "App Health (check/status)")          bash "$MODULES_DIR/health/menu.sh" ;;
-    "Database")                           bash "$MODULES_DIR/database/menu.sh" ;;
-    "Nginx")                              bash "$MODULES_DIR/nginx/menu.sh" ;;
-    "System")                             bash "$MODULES_DIR/system/menu.sh" ;;
-    "Release")                            bash "$MODULES_DIR/release/menu.sh" ;;
+    "Backend (install/update/rollback)")  bash "$MODULES_DIR/backend/menu.sh" || true ;;
+    "Frontend (install/update/rollback)") bash "$MODULES_DIR/frontend/menu.sh" || true ;;
+    "App Health (check/status)")          bash "$MODULES_DIR/health/menu.sh" || true ;;
+    "Database")                           bash "$MODULES_DIR/database/menu.sh" || true ;;
+    "Nginx")                              bash "$MODULES_DIR/nginx/menu.sh" || true ;;
+    "System")                             bash "$MODULES_DIR/system/menu.sh" || true ;;
+    "Release")                            bash "$MODULES_DIR/release/menu.sh" || true ;;
     "Salir")                              log "Bye."; exit 0 ;;
   esac
-
-  echo
-  read -rp "Presiona Enter para continuar..." _
+  # C3: no pausamos aca. Cada submenu ya gestiona su propia pausa "Presiona
+  # Enter" tras ejecutar un comando. Volver al menu principal solo redibuja.
 done

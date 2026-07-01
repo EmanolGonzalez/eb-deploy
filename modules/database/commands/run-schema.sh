@@ -38,7 +38,22 @@ warn "Archivo: $(basename "$SQL_FILE")"
 warn "Server  : $CONN_SERVER ($CONN_PROVIDER)"
 warn "DB      : $CONN_DB"
 echo ""
-if ! confirm "Ejecutar?"; then
+warn "=================================================================="
+warn "  CUIDADO — CONFLICTO CON LAS MIGRACIONES EF"
+warn "  El backend aplica migraciones EF automaticas al arrancar y se"
+warn "  guia por la tabla __EFMigrationsHistory."
+warn ""
+warn "  Correr este esquema SQL sobre una BD que el backend va a migrar"
+warn "  DESINCRONIZA el historial -> el backend entra en crash-loop con"
+warn "  'Duplicate column' (esquema fisico adelantado vs historial)."
+warn ""
+warn "  Elegi UNA sola fuente de verdad del esquema:"
+warn "    - EF auto-migrate (recomendado): NO uses run-schema; arranca el"
+warn "      backend sobre una BD VACIA (deploy database reset-schema)."
+warn "    - Esquema SQL: solo si el backend NO auto-migra."
+warn "=================================================================="
+echo ""
+if ! confirm "Entiendo el riesgo y quiero ejecutar el esquema SQL igual?"; then
   warn "Operacion cancelada."
   exit 0
 fi

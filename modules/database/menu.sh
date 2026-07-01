@@ -13,20 +13,25 @@ while true; do
   divider
   echo "  DATABASE MENU"
   divider
+  # M1: idioma unificado a espanol. M7: la accion destructiva (Resetear esquema)
+  # va al final, separada visualmente, para no quedar contigua a "Ejecutar esquema".
   menu_select "Selecciona una accion:" \
-    "Check DB connection" \
-    "Set Developer role" \
-    "Seed test data" \
-    "Correr esquema de la base de datos" \
-    "Reset schema" \
+    "Verificar conexion a BD" \
+    "Asignar rol Developer" \
+    "Cargar datos de prueba" \
+    "Ejecutar esquema de la base de datos" \
+    "--- [DESTRUCTIVO] ---" \
+    "Resetear esquema (elimina TODAS las tablas)" \
     "Volver al menu principal"
 
   case "$MENU_SELECTION" in
-    "Check DB connection") bash "$MODULE_DIR/commands/check.sh" ;;
-    "Set Developer role") bash "$MODULE_DIR/commands/set-developer.sh" ;;
-    "Seed test data")     bash "$MODULE_DIR/commands/seed-test-data.sh" ;;
-    "Correr esquema de la base de datos") bash "$MODULE_DIR/commands/run-schema.sh" ;;
-    "Reset schema")       bash "$MODULE_DIR/commands/reset-schema.sh" ;;
+    "Verificar conexion a BD") bash "$MODULE_DIR/commands/check.sh" ;;
+    "Asignar rol Developer") bash "$MODULE_DIR/commands/set-developer.sh" ;;
+    "Cargar datos de prueba")     bash "$MODULE_DIR/commands/seed-test-data.sh" ;;
+    "Ejecutar esquema de la base de datos") bash "$MODULE_DIR/commands/run-schema.sh" ;;
+    "--- [DESTRUCTIVO] ---") log "Es un separador, no una accion. Elegi una opcion valida." ;;
+    "Resetear esquema (elimina TODAS las tablas)") bash "$MODULE_DIR/commands/reset-schema.sh" ;;
+    "Volver al menu principal") exit 0 ;;
     *) exit 0 ;;
   esac
 

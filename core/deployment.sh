@@ -49,6 +49,11 @@ install_component() {
   fi
   validate_rar_file "$artifact_path" || exit 1
 
+  # M2: mostrar la version activa ANTES de pedir la nueva, para dar contexto.
+  local current_installed
+  current_installed="$(get_current_version "$component" 2>/dev/null || true)"
+  log "Version activa de $component: ${current_installed:-ninguna}"
+
   local version
   read -rp "Version a instalar (ej: 1.2.3): " version
   if [[ -z "$version" ]] || ! [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -64,8 +69,22 @@ install_component() {
   extract_rar "$component" "$version" "$artifact_path" || exit 1
   update_symlink "$component" "$RELEASE_DIR"
 
+  # Backend: aplica migraciones EF automaticas al arrancar. Para que la
+  # migracion corra UNA sola vez y limpia, damos control del encendido al
+  # operador en vez de reiniciar a ciegas (systemd Restart=always puede
+  # generar una carrera si el arranque falla/tarda durante la migracion).
   if [[ "$component" == "backend" ]]; then
-    restart_service "backend"
+    echo
+    log "El backend aplica migraciones EF al arrancar."
+    if confirm "Arrancar el backend ahora? (No = lo detengo y lo arrancas vos manual)"; then
+      restart_service "backend"
+      log "Backend arrancado. Segui la migracion: journalctl -u backend -f"
+    else
+      systemctl stop backend 2>/dev/null || true
+      warn "Backend DETENIDO. Arrancalo cuando quieras y controla la migracion:"
+      warn "  deploy system services   -> backend -> start"
+      warn "  journalctl -u backend -f  (para ver la migracion en vivo)"
+    fi
   fi
 
   audit_log "INSTALL" "$component" "$version" "OK" "Artifact: $artifact_path"
@@ -166,7 +185,15 @@ rollback_component() {
 
   local current
   current="$(get_current_version "$component")"
-  log "Rollback de $component: $current -> $target_version"
+
+  # M3: confirmar ANTES de ejecutar, mostrando origen -> destino. El rollback
+  # reinicia el backend, asi que evitamos que un numero equivocado en el menu
+  # dispare el cambio sin punto de frenado.
+  log "Rollback de $component: ${current:-desconocida} -> $target_version"
+  if ! confirm "Confirmar rollback a $target_version?"; then
+    log "Rollback cancelado. No se hizo ningun cambio."
+    return 0
+  fi
 
   local current_link="${INSTALL_BASE}/${component}/current"
   ln -sfn "$target_dir" "$current_link"

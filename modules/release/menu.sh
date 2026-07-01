@@ -14,11 +14,11 @@ while true; do
   echo "  RELEASE MENU"
   divider
   menu_select "Selecciona una accion:" \
-    "Build component" \
+    "Construir componente" \
     "Volver al menu principal"
 
   case "$MENU_SELECTION" in
-    "Build component") bash "$MODULE_DIR/commands/build.sh" ;;
+    "Construir componente") bash "$MODULE_DIR/commands/build.sh" ;;
     *) exit 0 ;;
   esac
 

@@ -27,13 +27,23 @@ warn "  La base de datos en si NO se elimina."
 warn "========================================"
 echo ""
 
-read -rp "¿Estas ABSOLUTAMENTE seguro? Escribe 'RESET' para confirmar: " confirm
-if [[ "$confirm" != "RESET" ]]; then
+# C1: pedimos la conexion PRIMERO para poder mostrar el destino exacto antes de
+# confirmar. Asi el operador confirma viendo a que server/BD va a resetear, en
+# vez de escribir 'RESET' a ciegas y recien despues elegir la conexion.
+prompt_connection || exit 1
+
+echo ""
+warn "Vas a ELIMINAR TODAS LAS TABLAS en este destino:"
+warn "  Motor    : $CONN_PROVIDER"
+warn "  Server   : $CONN_SERVER"
+warn "  Database : $CONN_DB"
+echo ""
+
+read -rp "¿Estas ABSOLUTAMENTE seguro? Escribe 'RESET' para confirmar: " confirm_input
+if [[ "$confirm_input" != "RESET" ]]; then
   log "Operacion cancelada. No se hizo ningun cambio."
   exit 0
 fi
-
-prompt_connection || exit 1
 
 echo ""
 divider

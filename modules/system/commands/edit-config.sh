@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../../core/logger.sh"
+source "$SCRIPT_DIR/../../../core/input.sh"   # P3: para usar confirm() estandar
 source "$SCRIPT_DIR/../../../core/config.sh"
 
 CONFIG_FILE="/app/config/config.env"
@@ -58,8 +59,8 @@ if [[ -f "$CONFIG_FILE" ]]; then
   if [[ -L "/app/backend/current" ]]; then
     echo ""
     log "El backend lee config.env al arrancar — los cambios necesitan un reinicio."
-    read -rp "¿Reiniciar el servicio backend ahora? [y/N]: " restart_now
-    if [[ "$restart_now" =~ ^[Yy]$ ]]; then
+    # P3: usa el confirm() estandar (maneja Ctrl+C/EOF de forma controlada).
+    if confirm "¿Reiniciar el servicio backend ahora?"; then
       if systemctl restart backend; then
         ok "Backend reiniciado. Nuevas variables activas."
       else

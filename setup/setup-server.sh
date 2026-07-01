@@ -510,6 +510,12 @@ render_backend_service_unit() {
 Description=Backend .NET API Service
 After=network.target
 
+# Anti crash-loop de migraciones: si el arranque falla (ej: una migracion EF),
+# systemd reintenta como mucho StartLimitBurst veces en StartLimitIntervalSec y
+# luego se DETIENE (failed) en vez de loopear infinito pisando la migracion.
+StartLimitIntervalSec=200
+StartLimitBurst=4
+
 [Service]
 Type=simple
 User=${SERVICE_USER}
@@ -546,7 +552,9 @@ AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 Restart=always
-RestartSec=5
+# 15s (no 5): mayor que el arranque+migracion (~10-18s). Evita que un reinicio
+# pise una migracion EF en curso — la causa de la carrera "Duplicate column".
+RestartSec=15
 StandardOutput=journal
 StandardError=journal
 
