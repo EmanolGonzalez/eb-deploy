@@ -60,42 +60,78 @@ verify_checksum() {
 }
 
 # =============================================================================
-# SYSTEM PACKAGES
+# HELPERS — dpkg puro (cero apt/apt-get)
 # =============================================================================
 
-install_system_packages() {
-  step "Instalando paquetes del sistema"
-  local packages="curl git wget tar libltdl7 unixodbc libgd3 libxml2 libxslt1.1"
-  local to_install=()
-  for pkg in $packages; do
-    if ! dpkg -l "$pkg" &>/dev/null; then to_install+=("$pkg"); fi
+# is_pkg_installed <pkg>
+# Retorna 0 si el paquete está instalado Y configurado; 1 en caso contrario.
+is_pkg_installed() {
+  dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
+}
+
+# ensure_group <assets-subdir> <paquete-objetivo...>
+# Verifica cada objetivo; si falta alguno instala TODOS los .deb del subdir
+# juntos (para que dpkg resuelva el orden de deps offline). Nunca usa apt.
+ensure_group() {
+  local subdir="$1"; shift
+  local targets=("$@")
+  local assets_subdir="$ASSETS_DIR/$subdir"
+  local all_ok=true
+
+  step "Verificando grupo: $subdir (objetivos: ${targets[*]})"
+
+  # Chequear si TODOS ya están instalados
+  for pkg in "${targets[@]}"; do
+    if ! is_pkg_installed "$pkg"; then
+      all_ok=false
+      break
+    fi
   done
 
-  if [[ ${#to_install[@]} -gt 0 ]]; then
-    # 1. Intentar instalar desde assets locales primero
-    local sys_debs=("$ASSETS_DIR/system/"*.deb)
-    if [[ -f "${sys_debs[0]:-}" ]]; then
-      log "Instalando dependencias de sistema desde assets..."
-      dpkg -i "${sys_debs[@]}" 2>/dev/null || true
-      dpkg --configure -a 2>/dev/null || true
-    fi
+  if [[ "$all_ok" == true ]]; then
+    ok "Todos los paquetes de '$subdir' ya instalados."
+    return 0
+  fi
 
-    # 2. Si todavia falta algo, intentar via apt
-    to_install=()
-    for pkg in $packages; do
-      if ! dpkg -l "$pkg" &>/dev/null; then to_install+=("$pkg"); fi
+  # Verificar que existen .deb en el subdir
+  local debs=("$assets_subdir/"*.deb)
+  if [[ ! -f "${debs[0]:-}" ]]; then
+    err "No se encontraron .deb en $assets_subdir"
+    for pkg in "${targets[@]}"; do
+      if ! is_pkg_installed "$pkg"; then
+        err "  $pkg FALTA — no hay assets en $assets_subdir"
+        MISSING_PKGS+=("$pkg")
+      fi
     done
+    return 1
+  fi
 
-    if [[ ${#to_install[@]} -gt 0 ]]; then
-      log "Instalando faltantes via apt: ${to_install[*]}"
-      apt-get update -qq && apt-get install -y -qq "${to_install[@]}" || true
-      
-      # Cachear para la proxima
-      mkdir -p "$ASSETS_DIR/system"
-      cp /var/cache/apt/archives/*.deb "$ASSETS_DIR/system/" 2>/dev/null || true
+  # Instalar todos los .deb del subdir juntos (dpkg ordena deps offline)
+  log "Instalando desde $assets_subdir (${#debs[@]} .deb)..."
+  dpkg -i "${debs[@]}" 2>/dev/null || true
+  dpkg --configure -a 2>/dev/null || true
+
+  # Re-verificar cada objetivo
+  for pkg in "${targets[@]}"; do
+    if is_pkg_installed "$pkg"; then
+      ok "  $pkg OK"
+    else
+      err "  $pkg FALTA (revisa deps en assets/$subdir)"
+      MISSING_PKGS+=("$pkg")
     fi
+  done
+}
+
+# report_packages — resumen final de paquetes objetivo
+report_packages() {
+  echo ""
+  if [[ ${#MISSING_PKGS[@]} -eq 0 ]]; then
+    ok "Todos los paquetes objetivo instalados."
   else
-    ok "Paquetes del sistema ya instalados."
+    warn "Los siguientes paquetes objetivo NO quedaron instalados:"
+    for pkg in "${MISSING_PKGS[@]}"; do
+      warn "  - $pkg  (verifica que su .deb con deps este en assets/)"
+    done
   fi
 }
 
@@ -118,9 +154,9 @@ install_dotnet() {
     ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
     ok ".NET SDK instalado: $(dotnet --version)"
   else
-    warn "Asset no encontrado: $tarball. Intentando online..."
-    curl -fsSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 9.0 --install-dir /usr/share/dotnet
-    ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
+    err "Asset no encontrado: $tarball"
+    err "Copia el tarball del SDK .NET 9 a assets/dotnet/ antes de ejecutar este script."
+    return 1
   fi
 }
 
@@ -141,8 +177,9 @@ install_node() {
     tar -xJf "$tarball" -C /usr/local --strip-components=1
     ok "Node.js instalado: $(node -v)"
   else
-    warn "Asset no encontrado: $tarball. Intentando online..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs
+    err "Asset no encontrado: $tarball"
+    err "Copia el tarball de Node.js 22 a assets/node/ antes de ejecutar este script."
+    return 1
   fi
 }
 
@@ -166,114 +203,12 @@ install_rar() {
     rm -rf "$tmp_dir"
     ok "rar/unrar instalados"
   else
-    apt-get install -y -qq unrar || true
+    err "Asset no encontrado: $tarball"
+    err "Copia rarlinux-x64-*.tar.gz a assets/tools/ antes de ejecutar este script."
+    return 1
   fi
 }
 
-# =============================================================================
-# NGINX
-# =============================================================================
-
-install_nginx() {
-  if command -v nginx &>/dev/null; then
-    ok "nginx ya instalado: $(nginx -v 2>&1)"
-    return
-  fi
-
-  local deb_files=("$ASSETS_DIR/nginx/"*.deb)
-  if [[ -f "${deb_files[0]:-}" ]]; then
-    step "Instalando nginx desde assets (.deb)"
-    dpkg -i "${deb_files[@]}" || apt-get install -f -y -qq || true
-    ok "nginx instalado desde assets"
-  else
-    apt-get update -qq && apt-get install -y -qq nginx || true
-  fi
-}
-
-# =============================================================================
-# SQLCMD (mssql-tools18)
-# =============================================================================
-
-install_sqlcmd() {
-  if command -v sqlcmd &>/dev/null; then
-    ok "sqlcmd ya instalado"
-    return
-  fi
-
-  local DB_DIR="$ASSETS_DIR/database"
-  local sql_debs=("$DB_DIR/"mssql-tools18*.deb "$DB_DIR/"msodbcsql18*.deb)
-
-  if [[ -f "${sql_debs[0]:-}" ]]; then
-    step "Instalando sqlcmd desde assets (.deb)"
-
-    # 1. Limpiar estado corrupto
-    for pkg in msodbcsql18 mssql-tools18; do
-      if dpkg -l "$pkg" 2>/dev/null | grep -q '^[a-z]'; then
-        log "Limpiando $pkg..."
-        rm -f /var/lib/dpkg/info/${pkg}.* 2>/dev/null || true
-        dpkg --purge --force-depends "$pkg" 2>/dev/null || true
-      fi
-    done
-
-    # 2. Instalar dependencias primero
-    local odbc_deps=()
-    for d in "$DB_DIR/"*.deb; do
-      [[ "$(basename "$d")" != *mariadb* && "$(basename "$d")" != *msodbc* && "$(basename "$d")" != *mssql* ]] && odbc_deps+=("$d")
-    done
-    [[ ${#odbc_deps[@]} -gt 0 ]] && dpkg -i "${odbc_deps[@]}" 2>/dev/null || true
-
-    # 3. Instalar msodbcsql y mssql-tools (con force-depends)
-    log "Instalando drivers..."
-    dpkg --force-depends -i "$DB_DIR/"msodbcsql18*.deb "$DB_DIR/"mssql-tools18*.deb 2>/dev/null || true
-    dpkg --configure -a 2>/dev/null || true
-  fi
-
-  # Symlink
-  for p in "/opt/mssql-tools18/bin/sqlcmd" "/opt/mssql-tools/bin/sqlcmd"; do
-    if [[ -x "$p" ]]; then
-      ln -sf "$p" /usr/local/bin/sqlcmd 2>/dev/null || true
-      ok "sqlcmd instalado"
-      echo ""
-      info "Para verificar la conexion a SQL Server manualmente:"
-      info "  sqlcmd -C -S <server>,<port> -U <user> -P '<pass>' -d <db> -Q \"SELECT 1\""
-      echo ""
-      return
-    fi
-  done
-}
-
-# =============================================================================
-# MARIADB CLIENT
-# =============================================================================
-
-install_mariadb_client() {
-  if command -v mariadb &>/dev/null; then
-    ok "mariadb-client ya instalado"
-    return
-  fi
-
-  local DEB_DIR="$ASSETS_DIR/database"
-  if ls "$DEB_DIR/"*mariadb*.deb &>/dev/null; then
-    step "Instalando mariadb-client desde assets (.deb)"
-    # Incluir las deps que NO matchean el glob *mariadb* (mysql-common,
-    # libconfig-inifiles-perl). Sin ellas, en un install OFFLINE mariadb-client
-    # queda "unpacked but not configured" y TRABA apt entero (no hay internet
-    # para 'apt -f install'). dpkg -i con todas juntas resuelve el orden de deps.
-    dpkg -i "$DEB_DIR/"mysql-common*.deb "$DEB_DIR/"libconfig-inifiles-perl*.deb "$DEB_DIR/"*mariadb*.deb 2>/dev/null || true
-    dpkg --configure -a 2>/dev/null || true
-  else
-    step "Instalando mariadb-client desde apt..."
-    add-apt-repository universe -y -n 2>/dev/null || true
-    apt-get update -qq && apt-get install -y -qq mariadb-client || true
-  fi
-
-  if command -v mariadb &>/dev/null; then
-    echo ""
-    info "Para verificar la conexion a MariaDB manualmente (te pide password):"
-    info "  mariadb -h <server> -P <port> -u <user> -p --ssl-verify-server-cert=0 -e \"SELECT 1\""
-    echo ""
-  fi
-}
 
 # =============================================================================
 # MAIN
@@ -284,28 +219,35 @@ echo -e "\n========================================"
 echo -e "  EB Deploy — Bootstrap (V3-STABLE)"
 echo -e "========================================\n"
 
-install_system_packages
-install_dotnet
-install_node
-install_rar
-install_nginx
-install_sqlcmd
-install_mariadb_client
+export DEBIAN_FRONTEND=noninteractive
+MISSING_PKGS=()
 
-# Auto-reparar dependencias pendientes: configura paquetes que quedaron
-# "unpacked but not configured" tras los dpkg -i de arriba.
-#
-# IMPORTANTE: usamos SOLO 'dpkg --configure -a', NUNCA 'apt-get install -f'.
-# En un server air-gapped apt NO puede descargar, asi que su unica forma de
-# "resolver" dependencias rotas es REMOVER paquetes — y una vez nos borro un
-# mariadb-client preexistente. dpkg --configure -a solo configura lo ya
-# desempaquetado y jamas remueve nada. Las deps deben venir todas en assets/.
-step "Reparando dependencias pendientes (dpkg --configure -a)"
-if dpkg --configure -a; then
-  ok "Dependencias configuradas."
-else
-  warn "dpkg --configure -a no completo. Revisa que TODOS los .deb (con deps)"
-  warn "esten en assets/ e instalalos manualmente: sudo dpkg -i assets/<dir>/*.deb"
-fi
+# NOTA: '|| true' en cada paso. El script tiene 'set -e'; sin la guarda, si un
+# grupo o runtime devuelve != 0 (ej. falta un .deb) el bootstrap abortaria ANTES
+# del reporte final. Con la guarda, corre TODOS los grupos, junta los faltantes
+# en MISSING_PKGS y report_packages te los lista al final (control real).
+
+# 1. Librerias base del sistema (deps compartidas: fuentes, imagen, xml, odbc, etc.)
+ensure_group system libgd3 libxml2 libxslt1.1 unixodbc libltdl7 libfontconfig1 libfreetype6 || true
+
+# 2. Runtimes desde tarballs (no deb) — sin cambios
+install_dotnet || true
+install_node || true
+install_rar || true
+
+# 3. nginx
+ensure_group nginx nginx || true
+
+# 4. Base de datos. Pre-aceptar EULA de Microsoft por si estan los debs mssql
+#    (debconf-set-selections, NO apt). mariadb-client es el objetivo critico.
+#    ensure_group database hace dpkg -i de TODO assets/database/ — incluye los
+#    debs mssql si existen, sin necesidad de listarlos como objetivo critico.
+echo "msodbcsql18 msodbcsql/ACCEPT_EULA boolean true" | debconf-set-selections 2>/dev/null || true
+echo "mssql-tools18 mssql-tools/accept_eula boolean true" | debconf-set-selections 2>/dev/null || true
+ensure_group database mariadb-client || true
+
+# 5. Configurar cualquier pendiente + reporte final
+dpkg --configure -a 2>/dev/null || true
+report_packages
 
 echo -e "\n========================================\n"
