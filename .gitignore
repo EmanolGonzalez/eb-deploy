@@ -1,0 +1,14 @@
+*tmpclaude*
+
+# Local agent/tooling artifacts
+.atl/
+.codegraph/
+# Ignorar instaladores y binarios del servidor offline
+*.tar.gz
+*.tar.xz
+*.deb
+*.rar
+*.zip
+
+assets/database/
+assets/system/

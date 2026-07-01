@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "target": "linux-x64",
+  "dotnet": {
+    "sdk": "9.0.203",
+    "file": "dotnet-sdk-9.0.203-linux-x64.tar.gz",
+    "install_dir": "/usr/share/dotnet"
+  },
+  "node": {
+    "version": "22.14.0",
+    "file": "node-v22.14.0-linux-x64.tar.xz",
+    "install_dir": "/usr/local"
+  },
+  "tools": {
+    "rar": {
+      "version": "7.2.0",
+      "file": "rarlinux-x64-720.tar.gz"
+    }
+  },
+  "database": {
+    "mariadb-client": {
+      "note": "Se descargan automaticamente al ejecutar setup/bootstrap.sh",
+      "debs_dir": "assets/database/"
+    },
+    "mssql-tools18": {
+      "note": "Descargar manualmente desde docs.microsoft.com",
+      "debs_dir": "assets/database/"
+    }
+  },
+  "system_packages": {
+    "note": "These packages have complex dependency chains. For fully offline installs, pre-download .deb files on a similar system and place them in assets/packages/",
+    "required": ["nginx", "unrar", "curl", "git", "wget", "tar"],
+    "optional": ["mssql-tools18", "unixodbc-dev"]
+  }
+}
