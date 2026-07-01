@@ -292,17 +292,20 @@ install_nginx
 install_sqlcmd
 install_mariadb_client
 
-# Auto-reparar dependencias pendientes. Los dpkg -i / --force-depends de arriba
-# (sqlcmd/mssql-tools, mariadb-client) pueden dejar paquetes "unpacked but not
-# configured", lo que TRABA apt para cualquier instalacion posterior (ej: el
-# certbot de configure-letsencrypt fallaba con "Unmet dependencies").
-# Nota: en un install 100% offline las deps faltantes deben estar en assets/;
-# si hay internet, apt las baja aca.
-step "Reparando dependencias pendientes (apt -f install)"
-if apt-get install -f -y; then
-  ok "Dependencias resueltas."
+# Auto-reparar dependencias pendientes: configura paquetes que quedaron
+# "unpacked but not configured" tras los dpkg -i de arriba.
+#
+# IMPORTANTE: usamos SOLO 'dpkg --configure -a', NUNCA 'apt-get install -f'.
+# En un server air-gapped apt NO puede descargar, asi que su unica forma de
+# "resolver" dependencias rotas es REMOVER paquetes — y una vez nos borro un
+# mariadb-client preexistente. dpkg --configure -a solo configura lo ya
+# desempaquetado y jamas remueve nada. Las deps deben venir todas en assets/.
+step "Reparando dependencias pendientes (dpkg --configure -a)"
+if dpkg --configure -a; then
+  ok "Dependencias configuradas."
 else
-  warn "apt -f install no pudo completar (revisa conectividad o falta un .deb en assets/)."
+  warn "dpkg --configure -a no completo. Revisa que TODOS los .deb (con deps)"
+  warn "esten en assets/ e instalalos manualmente: sudo dpkg -i assets/<dir>/*.deb"
 fi
 
 echo -e "\n========================================\n"
