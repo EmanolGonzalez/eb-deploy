@@ -630,6 +630,20 @@ server {
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
 
+    # CSP: SPA estatica, sin nonce por request (nginx no genera uno por
+    # archivo). El unico <style> inline (loader inicial en index.html) se
+    # permite por HASH exacto -- si se edita ese bloque hay que recalcular
+    # el hash (ver comentario en frontend/index.html) y actualizarlo aqui.
+    # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
+    # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
+    # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-g1QKmzaBQB8PYHILLpE3sccnhXgONiKzyUCs1r/BftM='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+
+    # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
+    # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
+    # Microfono no se usa en ningun lado -- se bloquea.
+    add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
+
     # HTML/SPA: revalidar SIEMPRE. El index.html apunta a los JS hasheados;
     # si se cachea, el browser sigue cargando el bundle viejo tras un deploy.
     # 'no-cache' = puede guardar pero DEBE revalidar (nginx responde 304 si no cambio).
@@ -681,6 +695,8 @@ server {
     add_header X-Frame-Options              DENY                            always;
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-g1QKmzaBQB8PYHILLpE3sccnhXgONiKzyUCs1r/BftM='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
 
     # HTML/SPA: revalidar SIEMPRE para tomar el bundle nuevo tras un deploy.
     add_header Cache-Control "no-cache" always;
