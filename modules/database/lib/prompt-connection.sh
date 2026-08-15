@@ -2,12 +2,11 @@
 # =============================================================================
 # modules/database/lib/prompt-connection.sh
 #
-# Helper compartido para pedir parámetros de conexión a BD interactivamente.
+# Helper compartido para pedir parámetros de conexión a MariaDB interactivamente.
 #
 # Define:
-#   prompt_connection()     -> pide provider + server + port + db + user + pass
+#   prompt_connection()     -> pide server + port + db + user + pass
 #   CONN_PROVIDER, CONN_SERVER, CONN_PORT, CONN_DB, CONN_USER, CONN_PASS
-#   PROVIDER_IS_SQLSERVER, PROVIDER_IS_MARIADB (true/false)
 #
 # Uso:
 #   source "$MODULE_DIR/lib/prompt-connection.sh"
@@ -22,33 +21,17 @@ source "$SCRIPT_DIR/../../../core/input.sh"
 
 prompt_connection() {
   # Resetear variables
-  CONN_PROVIDER=""
+  CONN_PROVIDER="MariaDB"
   CONN_SERVER=""
   CONN_PORT=""
   CONN_DB=""
   CONN_USER=""
   CONN_PASS=""
-  PROVIDER_IS_SQLSERVER=false
-  PROVIDER_IS_MARIADB=false
+
+  local DEFAULT_PORT="3307"
 
   echo ""
-
-  # --- Provider ---
-  menu_select "Motor de base de datos:" "SqlServer" "MariaDB" "Salir"
-  CONN_PROVIDER="$MENU_SELECTION"
-  [[ "$CONN_PROVIDER" == "Salir" ]] && return 1
-
-  if [[ "$CONN_PROVIDER" == "SqlServer" ]]; then
-    PROVIDER_IS_SQLSERVER=true
-    DEFAULT_PORT="1433"
-  else
-    PROVIDER_IS_MARIADB=true
-    DEFAULT_PORT="3307"
-  fi
-
-  # --- Parámetros ---
-  echo ""
-  log "=== $CONN_PROVIDER - Parametros de conexion ==="
+  log "=== MariaDB - Parametros de conexion ==="
   echo ""
 
   read -rp "Server (ej: localhost, 192.168.1.100): " CONN_SERVER

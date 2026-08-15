@@ -9,11 +9,11 @@ set -uo pipefail
 #   1. Resumen de parametros detectados
 #   2. Resolucion DNS del host           (getent hosts)
 #   3. Conectividad TCP al puerto         (/dev/tcp con timeout)
-#   4. Cliente del motor disponible       (sqlcmd / mariadb)
-#   5. Autenticacion + SELECT 1           (sqlcmd / mariadb)
+#   4. Cliente MariaDB disponible         (mariadb/mysql)
+#   5. Autenticacion + SELECT 1           (mariadb/mysql)
 #
-# Soporta SqlServer y MariaDB. Imprime el comando exacto de cada paso
-# (con la password enmascarada) para que puedas reproducirlo a mano.
+# Imprime el comando exacto de cada paso (con la password enmascarada) para
+# que puedas reproducirlo a mano.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,75 +87,45 @@ else
   fail
 fi
 
-# ── PASO 4 + 5: CLIENTE Y AUTENTICACION (por motor) ─────────────────────────
+# ── PASO 4 + 5: CLIENTE Y AUTENTICACION ─────────────────────────────────────
 
-if $PROVIDER_IS_SQLSERVER; then
-  # --- SQL Server ----------------------------------------------------------
-  step "4/5 — Cliente sqlcmd disponible"
-  # mssql-tools no siempre esta en PATH; lo buscamos en rutas conocidas.
-  for d in /opt/mssql-tools18/bin /opt/mssql-tools/bin; do
-    [[ -d "$d" && ":$PATH:" != *":$d:"* ]] && export PATH="$PATH:$d"
-  done
-  if command -v sqlcmd &>/dev/null; then
-    ok "sqlcmd encontrado en: $(command -v sqlcmd)"
+step "4/5 — Cliente mariadb/mysql disponible"
+client=""
+command -v mariadb &>/dev/null && client="mariadb"
+[[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
 
-    step "5/5 — Autenticacion + SELECT 1"
-    echo "  Conectando y ejecutando un query de prueba con:"
-    show_cmd "sqlcmd -C -S $CONN_SERVER,$CONN_PORT -U $CONN_USER -P $CONN_PASS -d $CONN_DB -Q \"SELECT 1\""
-    if out="$(sqlcmd -C -S "$CONN_SERVER,$CONN_PORT" -U "$CONN_USER" -P "$CONN_PASS" -d "$CONN_DB" -Q "SELECT 1" -b -t 10 2>&1)"; then
-      ok "AUTH OK — login y SELECT 1 exitosos sobre db=$CONN_DB."
-    else
-      err "AUTH FALLO — sqlcmd no pudo completar el query."
-      err "    Salida: $out"
-      fail
-    fi
+if [[ -z "$client" ]]; then
+  # Intento de instalar desde assets/*.deb (sin acceso a internet).
+  debs=("$DEPLOY_DIR/assets/database/"*mariadb*.deb)
+  if [[ -f "${debs[0]:-}" ]]; then
+    step "Instalando mariadb-client desde assets..."
+    show_cmd "dpkg -i ${debs[*]}"
+    dpkg -i "${debs[@]}" 2>/dev/null || true
+    dpkg --configure -a 2>/dev/null || true
+    apt-get install -f -y -qq 2>/dev/null || true
+    command -v mariadb &>/dev/null && client="mariadb"
+    [[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
+  fi
+fi
+
+if [[ -n "$client" ]]; then
+  ok "Cliente encontrado: $(command -v "$client")"
+
+  step "5/5 — Autenticacion + SELECT 1"
+  # --ssl-verify-server-cert=0: servidores internos sin SSL/con cert propio.
+  echo "  Conectando y ejecutando un query de prueba con:"
+  show_cmd "$client -h $CONN_SERVER -P $CONN_PORT -u$CONN_USER -p$CONN_PASS --ssl-verify-server-cert=0 $CONN_DB -e \"SELECT 1\""
+  if out="$("$client" -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" --ssl-verify-server-cert=0 "$CONN_DB" -e "SELECT 1" 2>&1)"; then
+    ok "AUTH OK — login y SELECT 1 exitosos sobre db=$CONN_DB."
   else
-    err "sqlcmd NO disponible. Instalalo con el bootstrap o manualmente."
-    err "    bash $DEPLOY_DIR/setup/bootstrap.sh"
+    err "AUTH FALLO — el cliente no pudo completar el query."
+    err "    Salida: $out"
     fail
   fi
-
 else
-  # --- MariaDB -------------------------------------------------------------
-  step "4/5 — Cliente mariadb/mysql disponible"
-  client=""
-  command -v mariadb &>/dev/null && client="mariadb"
-  [[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
-
-  if [[ -z "$client" ]]; then
-    # Intento de instalar desde assets/*.deb (sin acceso a internet).
-    debs=("$DEPLOY_DIR/assets/database/"*mariadb*.deb)
-    if [[ -f "${debs[0]:-}" ]]; then
-      step "Instalando mariadb-client desde assets..."
-      show_cmd "dpkg -i ${debs[*]}"
-      dpkg -i "${debs[@]}" 2>/dev/null || true
-      dpkg --configure -a 2>/dev/null || true
-      apt-get install -f -y -qq 2>/dev/null || true
-      command -v mariadb &>/dev/null && client="mariadb"
-      [[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
-    fi
-  fi
-
-  if [[ -n "$client" ]]; then
-    ok "Cliente encontrado: $(command -v "$client")"
-
-    step "5/5 — Autenticacion + SELECT 1"
-    # --ssl-verify-server-cert=0: servidores internos sin SSL/con cert propio.
-    # No verificamos el cert del server (equivale al -C de sqlcmd).
-    echo "  Conectando y ejecutando un query de prueba con:"
-    show_cmd "$client -h $CONN_SERVER -P $CONN_PORT -u$CONN_USER -p$CONN_PASS --ssl-verify-server-cert=0 $CONN_DB -e \"SELECT 1\""
-    if out="$("$client" -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" --ssl-verify-server-cert=0 "$CONN_DB" -e "SELECT 1" 2>&1)"; then
-      ok "AUTH OK — login y SELECT 1 exitosos sobre db=$CONN_DB."
-    else
-      err "AUTH FALLO — el cliente no pudo completar el query."
-      err "    Salida: $out"
-      fail
-    fi
-  else
-    err "Cliente mariadb/mysql NO disponible y no hay .deb en assets/database/."
-    err "    bash $DEPLOY_DIR/setup/bootstrap.sh   (o: apt-get install -y mariadb-client)"
-    fail
-  fi
+  err "Cliente mariadb/mysql NO disponible y no hay .deb en assets/database/."
+  err "    bash $DEPLOY_DIR/setup/bootstrap.sh   (o: apt-get install -y mariadb-client)"
+  fail
 fi
 
 # ── RESULTADO + SUGERENCIAS ─────────────────────────────────────────────────
@@ -175,20 +145,7 @@ divider
 echo ""
 step "Que validar / comandos sugeridos"
 
-if $PROVIDER_IS_SQLSERVER; then
-  cat <<EOF
-  SQL SERVER:
-    1. Reproducir la conexion a mano (si funciona, el problema es del script):
-         sqlcmd -C -S $CONN_SERVER,$CONN_PORT -U $CONN_USER -P '<password>' -d $CONN_DB -Q "SELECT 1"
-    2. Ver si el puerto responde:
-         timeout 5 bash -c 'echo > /dev/tcp/$CONN_SERVER/$CONN_PORT' && echo abierto
-    3. En el servidor SQL: que TCP/IP este habilitado (SQL Server Configuration Manager)
-       y que el puerto $CONN_PORT coincida.
-    4. Firewall del server de BD: permitir entrada al puerto $CONN_PORT.
-    5. El login $CONN_USER debe ser SQL auth (no solo Windows) y tener acceso a $CONN_DB.
-EOF
-else
-  cat <<EOF
+cat <<EOF
   MARIADB:
     1. Reproducir la conexion a mano (te pide la password, no la pongas en el comando):
          $([[ -n "${client:-}" ]] && echo "$client" || echo mariadb) -h $CONN_SERVER -P $CONN_PORT -u $CONN_USER -p --ssl-verify-server-cert=0 -e "SELECT 1"
@@ -202,7 +159,6 @@ else
        y tener GRANT sobre $CONN_DB.
     6. Firewall del server de BD: permitir entrada al puerto $CONN_PORT.
 EOF
-fi
 
 echo ""
 exit 1

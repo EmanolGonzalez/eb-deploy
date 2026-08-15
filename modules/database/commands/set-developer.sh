@@ -87,59 +87,38 @@ warn "(sin normalizar mayus/minus ni espacios) o el hash no matchea. Verifica ta
 warn "que PiiEncryption__HashKeyBase64 sea la MISMA con la que el backend guardo los datos."
 echo ""
 
-if $PROVIDER_IS_SQLSERVER; then
-  if ! command -v sqlcmd &>/dev/null; then
-    err "sqlcmd no disponible."
-    exit 1
-  fi
-
-  temp_sql="$(mktemp)"
-  sed "s/0xHASH_PLACEHOLDER/0x${EMAIL_HASH_HEX}/" "$SQL_DIR/set-developer-sqlserver.sql" > "$temp_sql"
-
-  # -C: confiar en el cert del server (servers internos sin SSL valido).
-  if sqlcmd -C -S "$CONN_SERVER,$CONN_PORT" -U "$CONN_USER" -P "$CONN_PASS" -d "$CONN_DB" -I -i "$temp_sql"; then
-    ok "Rol Desarrollador asignado a '$EMAIL' en SQL Server."
-  else
-    err "Error al asignar rol en SQL Server."
-    rm -f "$temp_sql"
-    exit 1
-  fi
-  rm -f "$temp_sql"
-
+client=""
+if command -v mariadb &>/dev/null; then client="mariadb"
+elif command -v mysql &>/dev/null; then client="mysql"
 else
-  client=""
-  if command -v mariadb &>/dev/null; then client="mariadb"
-  elif command -v mysql &>/dev/null; then client="mysql"
-  else
-    err "No se encontro 'mysql' o 'mariadb'."
-    exit 1
-  fi
-
-  temp_sql="$(mktemp)"
-  sed "s/0xHASH_PLACEHOLDER/0x${EMAIL_HASH_HEX}/" "$SQL_DIR/set-developer-mariadb.sql" > "$temp_sql"
-
-  # Docker
-  docker_container=""
-  docker_container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'maria|mysql' | head -1 || true)"
-  if [[ -n "$docker_container" ]]; then
-    log "Usando contenedor Docker: $docker_container"
-    if docker exec -i "$docker_container" "$client" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$temp_sql" 2>/dev/null; then
-      ok "Rol Desarrollador asignado a '$EMAIL' en MariaDB (via Docker)."
-      rm -f "$temp_sql"
-      exit 0
-    fi
-  fi
-
-  # Directo
-  if "$client" --ssl-verify-server-cert=0 -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$temp_sql"; then
-    ok "Rol Desarrollador asignado a '$EMAIL' en MariaDB."
-  else
-    err "Error al asignar rol en MariaDB."
-    rm -f "$temp_sql"
-    exit 1
-  fi
-  rm -f "$temp_sql"
+  err "No se encontro 'mysql' o 'mariadb'."
+  exit 1
 fi
+
+temp_sql="$(mktemp)"
+sed "s/0xHASH_PLACEHOLDER/0x${EMAIL_HASH_HEX}/" "$SQL_DIR/set-developer-mariadb.sql" > "$temp_sql"
+
+# Docker
+docker_container=""
+docker_container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'maria|mysql' | head -1 || true)"
+if [[ -n "$docker_container" ]]; then
+  log "Usando contenedor Docker: $docker_container"
+  if docker exec -i "$docker_container" "$client" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$temp_sql" 2>/dev/null; then
+    ok "Rol Desarrollador asignado a '$EMAIL' en MariaDB (via Docker)."
+    rm -f "$temp_sql"
+    exit 0
+  fi
+fi
+
+# Directo
+if "$client" --ssl-verify-server-cert=0 -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$temp_sql"; then
+  ok "Rol Desarrollador asignado a '$EMAIL' en MariaDB."
+else
+  err "Error al asignar rol en MariaDB."
+  rm -f "$temp_sql"
+  exit 1
+fi
+rm -f "$temp_sql"
 
 echo ""
 divider

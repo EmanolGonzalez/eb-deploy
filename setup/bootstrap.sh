@@ -238,12 +238,8 @@ install_rar || true
 # 3. nginx
 ensure_group nginx nginx || true
 
-# 4. Base de datos. Pre-aceptar EULA de Microsoft por si estan los debs mssql
-#    (debconf-set-selections, NO apt). mariadb-client es el objetivo critico.
-#    ensure_group database hace dpkg -i de TODO assets/database/ — incluye los
-#    debs mssql si existen, sin necesidad de listarlos como objetivo critico.
-echo "msodbcsql18 msodbcsql/ACCEPT_EULA boolean true" | debconf-set-selections 2>/dev/null || true
-echo "mssql-tools18 mssql-tools/accept_eula boolean true" | debconf-set-selections 2>/dev/null || true
+# 4. Base de datos. mariadb-client es el objetivo critico.
+#    ensure_group database hace dpkg -i de TODO assets/database/.
 ensure_group database mariadb-client || true
 
 # 5. Configurar cualquier pendiente + reporte final

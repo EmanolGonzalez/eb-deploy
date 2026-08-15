@@ -72,23 +72,13 @@ update_config_value() {
   chmod 600 "$CONFIG_FILE"
 }
 
-# Avisa (NO bloquea) si las connection strings actuales van a dar problemas de
+# Avisa (NO bloquea) si la connection string actual va a dar problemas de
 # SSL contra servers internos sin cert valido. Requiere load_config previo.
 # Devuelve 0 siempre (son advertencias). Usa 'warn' de core/logger.sh.
 # Compartida entre setup-server.sh (validate_config) y edit-config.sh para que
 # ambos caminos avisen igual.
 warn_db_ssl_config() {
-  local sqlserver="${ConnectionStrings__SqlServer:-}"
   local maria="${ConnectionStrings__MariaDB:-}"
-
-  if [[ -n "$sqlserver" && "$sqlserver" != "CHANGE_ME" ]]; then
-    if [[ ! "$sqlserver" =~ [Tt]rust[Ss]erver[Cc]ertificate=[Tt]rue && ! "$sqlserver" =~ [Ee]ncrypt=[Ff]alse ]]; then
-      warn "ConnectionStrings__SqlServer sin TrustServerCertificate=True ni Encrypt=False: en server interno sin SSL valido el backend RECHAZA la conexion (Encrypt=True por default). Agrega 'TrustServerCertificate=True;'."
-    fi
-    if [[ "$sqlserver" =~ [Tt]rusted_[Cc]onnection=[Tt]rue ]]; then
-      warn "ConnectionStrings__SqlServer usa Trusted_Connection=True (auth Windows): desde Linux no funciona. Usa 'User ID=...;Password=...'."
-    fi
-  fi
 
   if [[ -n "$maria" && "$maria" != "CHANGE_ME" ]]; then
     if [[ "$maria" =~ [Ss]sl[Mm]ode=([Rr]equired|[Vv]erify[Cc][Aa]|[Vv]erify[Ff]ull) ]]; then

@@ -7,7 +7,7 @@ set -uo pipefail
 # Falla (exit 1) si encuentra alguno de estos problemas, ANTES de deployar:
 #   1. Error de sintaxis (bash -n)
 #   2. 'local' fuera de funcion  -> "local: can only be used in a function"
-#   3. Conexion a BD sin trust SSL (sqlcmd sin -C / mariadb directo sin
+#   3. Conexion a BD sin trust SSL (mariadb directo sin
 #      --ssl-verify-server-cert=0) -> falla contra servers internos sin SSL
 #
 # Solo usa herramientas presentes en el server: bash, find, awk, grep.
@@ -71,14 +71,6 @@ if [[ $local_bad -eq 0 ]]; then ok "Ningun 'local' fuera de funcion."; else ISSU
 # ── 3) TRUST SSL EN CONEXIONES A SERVERS INTERNOS ────────────────────────────
 step "3/3 — Trust SSL (servers internos)"
 ssl_bad=0
-
-# sqlcmd con -S (invocacion real) pero sin -C.
-while IFS= read -r hit; do
-  [[ -z "$hit" ]] && continue
-  err "sqlcmd sin -C (no confia en cert interno): $hit"
-  ssl_bad=$((ssl_bad + 1))
-done < <(grep -rnE 'sqlcmd .* -S ' "$BASE_DIR" --include='*.sh' 2>/dev/null \
-           | grep -v '/lint.sh:' | grep -v ' -C ' | grep -vE ':[[:space:]]*#')
 
 # Cliente mariadb/mysql/dump directo (-h) sin --ssl-verify-server-cert.
 while IFS= read -r hit; do

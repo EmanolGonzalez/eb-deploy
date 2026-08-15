@@ -76,11 +76,11 @@ write_config_template() {
 # appsettings.json NO debe contener secretos (tiene CHANGE_ME).
 #
 # Convencion .NET: __ = jerarquia JSON
-# Ej: ConnectionStrings__SqlServer overrideea ConnectionStrings.SqlServer
+# Ej: ConnectionStrings__MariaDB overrideea ConnectionStrings.MariaDB
 #
 # INSTRUCCIONES:
 #   1. Reemplaza cada CHANGE_ME con el valor real.
-#   2. Como minimo debes setear UNA cadena de conexion (SqlServer o MariaDB).
+#   2. Debes setear la cadena de conexion de MariaDB.
 #   3. Guarda y cierra el editor. El script valida y continua.
 # =============================================================================
 
@@ -111,28 +111,10 @@ BACKEND_HEALTH_ENDPOINT=""
 # =============================================================================
 
 # --- DATABASE ---
-# DB_PROVIDER decide QUE driver/DbContext usa el backend (SqlServer o MariaDB).
-# DEBE coincidir con cual ConnectionStrings__* llenas abajo: si pones
-# DB_PROVIDER="MariaDB" tenes que llenar ConnectionStrings__MariaDB (no el de SqlServer).
-DB_PROVIDER="SqlServer"
+# DB_PROVIDER: unico valor soportado es "MariaDB".
+DB_PROVIDER="MariaDB"
 
-# Cadena de conexion para SQL Server. Dejala VACIA si usas MariaDB.
-# Driver: Microsoft.Data.SqlClient (UseSqlServer). El backend la usa TAL CUAL.
-#
-# Atributos y POR QUE se necesitan (servidores internos SIN SSL valido):
-#   Server=host,puerto       -> SQL Server separa host y puerto con COMA, no ":".
-#   Database=...             -> base a la que conecta.
-#   User ID=...;Password=... -> SQL auth. NO uses Trusted_Connection (eso es
-#                               auth de Windows y NO funciona desde Linux).
-#   TrustServerCertificate=True -> OBLIGATORIO en internos. El driver trae
-#                               Encrypt=True por default; sin esto RECHAZA el
-#                               cert self-signed del server -> no conecta.
-#   Encrypt=False            -> opcional: no cifra. Usalo si el server no tiene
-#                               TLS ni siquiera self-signed.
-# Ejemplo: "Server=10.0.0.5,1433;Database=EB;User ID=eb_app;Password=secret;TrustServerCertificate=True;Encrypt=False;"
-ConnectionStrings__SqlServer="CHANGE_ME"
-
-# Cadena de conexion para MariaDB. Dejala VACIA si usas SQL Server.
+# Cadena de conexion para MariaDB.
 # Driver: MySqlConnector via Pomelo (UseMySql). El backend la usa TAL CUAL.
 #
 # Atributos y POR QUE se necesitan (servidores internos SIN SSL valido):
@@ -146,7 +128,7 @@ ConnectionStrings__SqlServer="CHANGE_ME"
 #                               (SslMode=None tambien sirve: no intenta SSL.)
 #   AllowPublicKeyRetrieval=False -> seguridad: no le pide la clave publica al server.
 # Ejemplo: "Server=10.0.0.6;Port=3307;Database=ema;User=eb_app;Password=secret;CharSet=utf8mb4;SslMode=Preferred;AllowPublicKeyRetrieval=False;"
-ConnectionStrings__MariaDB=""
+ConnectionStrings__MariaDB="CHANGE_ME"
 
 # --- FRONTEND ---
 # URL publica del frontend.
@@ -256,10 +238,9 @@ detect_editor() {
 }
 
 validate_config() {
-  local sqlserver mariadb frontend authority audience
+  local mariadb frontend authority audience
   # Parser sin source — un valor con $(comando) NO se ejecuta.
   load_config || return 1
-  sqlserver="${ConnectionStrings__SqlServer:-}"
   mariadb="${ConnectionStrings__MariaDB:-}"
   frontend="${FrontendProdUrl:-}"
   authority="${Authentication__Authority:-}"
@@ -267,11 +248,11 @@ validate_config() {
 
   local errors=()
 
-  if [[ "$sqlserver" == "CHANGE_ME" || "$mariadb" == "CHANGE_ME" ]]; then
-    errors+=("Hay 'CHANGE_ME' en una cadena de conexion. Reemplazalo por el valor real o dejalo vacio.")
+  if [[ "$mariadb" == "CHANGE_ME" ]]; then
+    errors+=("ConnectionStrings__MariaDB tiene 'CHANGE_ME'. Reemplazalo por el valor real.")
   fi
-  if [[ -z "$sqlserver" && -z "$mariadb" ]]; then
-    errors+=("Debes setear al menos UNA cadena de conexion (ConnectionStrings__SqlServer o ConnectionStrings__MariaDB).")
+  if [[ -z "$mariadb" ]]; then
+    errors+=("Debes setear ConnectionStrings__MariaDB.")
   fi
   if [[ "$frontend" == "CHANGE_ME" ]]; then
     errors+=("FrontendProdUrl tiene CHANGE_ME. Reemplazalo por la URL real.")
@@ -839,6 +820,5 @@ if config_has_placeholders; then
   echo
   info "Para verificar la conexion a la BD manualmente:"
   info "  MariaDB : mariadb -h <server> -P <port> -u <user> -p --ssl-verify-server-cert=0 -e \"SELECT 1\""
-  info "  SQL Srv : sqlcmd -C -S <server>,<port> -U <user> -P '<pass>' -d <db> -Q \"SELECT 1\""
   echo
 fi

@@ -326,67 +326,39 @@ print_status() {
   return "$exit_code"
 }
 
-# Check database connectivity (SQL Server o MariaDB).
-# Respeta DB_PROVIDER; si no esta, usa la cadena que tenga valor.
-# Servers internos sin SSL: sqlcmd -C / mariadb --ssl-verify-server-cert=0.
+# Check database connectivity (MariaDB).
+# Servers internos sin SSL: mariadb --ssl-verify-server-cert=0.
 check_db_connection() {
-  local provider="${DB_PROVIDER:-}"
-  local sql="${ConnectionStrings__SqlServer:-}"
   local maria="${ConnectionStrings__MariaDB:-}"
 
-  local cs db_type
-  if [[ "${provider,,}" == "mariadb" && -n "$maria" ]]; then
-    cs="$maria"; db_type="MariaDB"
-  elif [[ -n "$sql" ]]; then
-    cs="$sql"; db_type="SQL Server"
-  elif [[ -n "$maria" ]]; then
-    cs="$maria"; db_type="MariaDB"
-  else
+  if [[ -z "$maria" ]]; then
     warn "No hay cadena de conexion configurada. Se omite validacion de BD."
     return 0
   fi
 
-  log "Validando conexion a $db_type..."
+  log "Validando conexion a MariaDB..."
 
-  if [[ "$db_type" == "SQL Server" ]]; then
-    if ! command -v sqlcmd &>/dev/null; then
-      warn "sqlcmd no disponible. Se omite validacion de SQL Server."
-      return 0
-    fi
-    local server user password
-    server="$(echo "$cs"   | sed -nE 's/.*[Ss]erver=([^;]+).*/\1/p')"
-    user="$(echo "$cs"     | sed -nE 's/.*([Uu]ser [Ii][Dd]|[Uu]id)=([^;]+).*/\2/p')"
-    password="$(echo "$cs" | sed -nE 's/.*[Pp]assword=([^;]+).*/\1/p')"
-
-    if sqlcmd -C -S "$server" -U "$user" -P "$password" -Q "SELECT 1" -o /dev/null 2>&1; then
-      ok "Conexion a $db_type exitosa ($server)"
-      return 0
-    fi
-    err "No se pudo conectar a $db_type ($server)"
-    return 1
-  else
-    local client=""
-    command -v mariadb &>/dev/null && client="mariadb"
-    [[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
-    if [[ -z "$client" ]]; then
-      warn "mariadb/mysql no disponible. Se omite validacion de MariaDB."
-      return 0
-    fi
-    local server port user password database
-    server="$(echo "$cs"   | sed -nE 's/.*[Ss]erver=([^;]+).*/\1/p')"
-    port="$(echo "$cs"     | sed -nE 's/.*[Pp]ort=([^;]+).*/\1/p')"
-    user="$(echo "$cs"     | sed -nE 's/.*[Uu]ser=([^;]+).*/\1/p')"
-    password="$(echo "$cs" | sed -nE 's/.*[Pp]assword=([^;]+).*/\1/p')"
-    database="$(echo "$cs" | sed -nE 's/.*[Dd]atabase=([^;]+).*/\1/p')"
-    port="${port:-3306}"
-
-    if "$client" --ssl-verify-server-cert=0 -h "$server" -P "$port" -u"$user" -p"$password" "${database:-}" -e "SELECT 1" &>/dev/null; then
-      ok "Conexion a $db_type exitosa ($server:$port)"
-      return 0
-    fi
-    err "No se pudo conectar a $db_type ($server:$port)"
-    return 1
+  local client=""
+  command -v mariadb &>/dev/null && client="mariadb"
+  [[ -z "$client" ]] && command -v mysql &>/dev/null && client="mysql"
+  if [[ -z "$client" ]]; then
+    warn "mariadb/mysql no disponible. Se omite validacion de MariaDB."
+    return 0
   fi
+  local server port user password database
+  server="$(echo "$maria"   | sed -nE 's/.*[Ss]erver=([^;]+).*/\1/p')"
+  port="$(echo "$maria"     | sed -nE 's/.*[Pp]ort=([^;]+).*/\1/p')"
+  user="$(echo "$maria"     | sed -nE 's/.*[Uu]ser=([^;]+).*/\1/p')"
+  password="$(echo "$maria" | sed -nE 's/.*[Pp]assword=([^;]+).*/\1/p')"
+  database="$(echo "$maria" | sed -nE 's/.*[Dd]atabase=([^;]+).*/\1/p')"
+  port="${port:-3306}"
+
+  if "$client" --ssl-verify-server-cert=0 -h "$server" -P "$port" -u"$user" -p"$password" "${database:-}" -e "SELECT 1" &>/dev/null; then
+    ok "Conexion a MariaDB exitosa ($server:$port)"
+    return 0
+  fi
+  err "No se pudo conectar a MariaDB ($server:$port)"
+  return 1
 }
 
 # Check if external services are reachable (Tribunal services)

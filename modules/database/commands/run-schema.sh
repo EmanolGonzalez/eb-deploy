@@ -3,9 +3,7 @@ set -euo pipefail
 # =============================================================================
 # modules/database/commands/run-schema.sh — Ejecutar esquema de base de datos
 #
-# Elige el archivo .sql segun el provider:
-#   MariaDB  -> scripts/sql/esquema-backend.mariadb.sql
-#   SqlServer -> scripts/sql/esquema-backend.sqlserver.sql
+# Usa scripts/sql/esquema-backend.mariadb.sql
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,11 +14,7 @@ source "$MODULE_DIR/lib/prompt-connection.sh"
 
 prompt_connection || exit 1
 
-if $PROVIDER_IS_SQLSERVER; then
-  SQL_FILE="$MODULE_DIR/../../scripts/sql/esquema-backend.sqlserver.sql"
-else
-  SQL_FILE="$MODULE_DIR/../../scripts/sql/esquema-backend.mariadb.sql"
-fi
+SQL_FILE="$MODULE_DIR/../../scripts/sql/esquema-backend.mariadb.sql"
 
 if [[ ! -f "$SQL_FILE" ]]; then
   err "No se encontro: $SQL_FILE"
@@ -82,35 +76,24 @@ tr -d '\000' < "$SQL_FILE" | \
 SQL_EXEC_PATH="$tmp_clean"
 
 exitcode=0
-if $PROVIDER_IS_SQLSERVER; then
-  if ! command -v sqlcmd &>/dev/null; then
-    err "sqlcmd no disponible."
-    [[ "$SQL_EXEC_PATH" == "/tmp/"* ]] && rm -f "$SQL_EXEC_PATH"
-    exit 1
-  fi
-  # -C: confiar en el cert del server (servers internos sin SSL valido).
-  sqlcmd -C -S "$CONN_SERVER,$CONN_PORT" -d "$CONN_DB" -U "$CONN_USER" -P "$CONN_PASS" -I -i "$SQL_EXEC_PATH"
+client=""
+if command -v mariadb &>/dev/null; then client="mariadb"
+elif command -v mysql &>/dev/null; then client="mysql"
+else
+  err "No se encontro 'mariadb' ni 'mysql'."
+  [[ "$SQL_EXEC_PATH" == "/tmp/"* ]] && rm -f "$SQL_EXEC_PATH"
+  exit 1
+fi
+
+docker_container=""
+docker_container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'maria|mysql' | head -1 || true)"
+if [[ -n "$docker_container" ]]; then
+  log "Usando contenedor Docker: $docker_container"
+  docker exec -i "$docker_container" "$client" --binary-mode -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$SQL_EXEC_PATH"
   exitcode=$?
 else
-  client=""
-  if command -v mariadb &>/dev/null; then client="mariadb"
-  elif command -v mysql &>/dev/null; then client="mysql"
-  else
-    err "No se encontro 'mariadb' ni 'mysql'."
-    [[ "$SQL_EXEC_PATH" == "/tmp/"* ]] && rm -f "$SQL_EXEC_PATH"
-    exit 1
-  fi
-
-  docker_container=""
-  docker_container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'maria|mysql' | head -1 || true)"
-  if [[ -n "$docker_container" ]]; then
-    log "Usando contenedor Docker: $docker_container"
-    docker exec -i "$docker_container" "$client" --binary-mode -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$SQL_EXEC_PATH"
-    exitcode=$?
-  else
-    "$client" --binary-mode --ssl-verify-server-cert=0 -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$SQL_EXEC_PATH"
-    exitcode=$?
-  fi
+  "$client" --binary-mode --ssl-verify-server-cert=0 -h "$CONN_SERVER" -P "$CONN_PORT" -u"$CONN_USER" -p"$CONN_PASS" "$CONN_DB" < "$SQL_EXEC_PATH"
+  exitcode=$?
 fi
 
 # Limpiar temporal si se creo

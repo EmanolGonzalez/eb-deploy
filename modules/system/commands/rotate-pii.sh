@@ -54,26 +54,6 @@ if [[ ! -d "$JOB_DIR" ]]; then
   exit 1
 fi
 
-# 0.1 Safety Check: Bloquear rotacion en produccion (SQL Server)
-# A menos que se pase el flag --force-prod
-load_config
-if [[ "$DatabaseProvider" == "SqlServer" && "$1" != "--force-prod" ]]; then
-  echo
-  divider
-  err "BLOQUEO DE SEGURIDAD: SQL SERVER DETECTADO (PRODUCCION)"
-  divider
-  warn "La rotacion de PII en produccion es una operacion de ALTO IMPACTO."
-  warn "Afecta la capacidad de busqueda de todos los registros hasta que el job termine."
-  echo
-  log "Si realmente desea proceder, ejecute con el comando de sistema:"
-  log "sudo bash /app/deploy/modules/system/commands/rotate-pii.sh --force-prod"
-  exit 1
-fi
-
-if [[ "$DatabaseProvider" == "MariaDB" ]]; then
-  ok "Ambiente de TEST (MariaDB) detectado. Procediendo con precauciones estandar."
-fi
-
 # 1. Backup config
 mkdir -p "$BACKUP_DIR"
 cp "$CONFIG_FILE" "$BACKUP_DIR/config.env.pre-pii-rotate.$local_ts"

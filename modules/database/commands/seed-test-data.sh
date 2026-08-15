@@ -98,29 +98,6 @@ build_sql() {
 }
 
 # =============================================================================
-# RUN: SQL Server
-# =============================================================================
-run_sqlserver() {
-  log "Ejecutando seed en SQL Server: $CONN_SERVER, db=$CONN_DB"
-
-  generate_test_data
-  local temp_sql
-  temp_sql="$(build_sql "$SQL_DIR/seed-test-data-sqlserver.sql")"
-
-  # -C: confiar en el cert del server (servers internos sin SSL valido).
-  sqlcmd -C -S "$CONN_SERVER,$CONN_PORT" -d "$CONN_DB" -U "$CONN_USER" -P "$CONN_PASS" -I -i "$temp_sql"
-  local exitcode=$?
-  rm -f "$temp_sql"
-
-  if [[ $exitcode -eq 0 ]]; then
-    ok "SQL Server: Seed completado exitosamente"
-    echo ""
-  fi
-
-  return $exitcode
-}
-
-# =============================================================================
 # RUN: MariaDB
 # =============================================================================
 run_mariadb() {
@@ -193,27 +170,15 @@ echo "  EJECUTANDO SEED EN $CONN_PROVIDER"
 divider
 echo ""
 
-if $PROVIDER_IS_SQLSERVER; then
-  run_sqlserver || {
-    err "SQL Server: Fallo en operaciones de escritura."
-    echo ""
-    warn "POSIBLES CAUSAS:"
-    echo "  - El usuario no tiene permisos INSERT/UPDATE/DELETE en las tablas"
-    echo "  - La conexion esta bloqueada por firewall"
-    echo "  - El servidor no esta accesible desde aqui"
-    exit 1
-  }
-else
-  run_mariadb || {
-    err "MariaDB: Fallo en operaciones de escritura."
-    echo ""
-    warn "POSIBLES CAUSAS:"
-    echo "  - El usuario no tiene permisos INSERT/UPDATE/DELETE en las tablas"
-    echo "  - La conexion esta bloqueada por firewall"
-    echo "  - El servidor no esta accesible desde aqui"
-    exit 1
-  }
-fi
+run_mariadb || {
+  err "MariaDB: Fallo en operaciones de escritura."
+  echo ""
+  warn "POSIBLES CAUSAS:"
+  echo "  - El usuario no tiene permisos INSERT/UPDATE/DELETE en las tablas"
+  echo "  - La conexion esta bloqueada por firewall"
+  echo "  - El servidor no esta accesible desde aqui"
+  exit 1
+}
 
 echo ""
 divider
