@@ -20,6 +20,7 @@ while true; do
     "Asignar rol Developer" \
     "Cargar datos de prueba" \
     "Ejecutar esquema de la base de datos" \
+    "Correr backup ahora" \
     "--- [DESTRUCTIVO] ---" \
     "Resetear esquema (elimina TODAS las tablas)" \
     "Volver al menu principal"
@@ -29,6 +30,7 @@ while true; do
     "Asignar rol Developer") bash "$MODULE_DIR/commands/set-developer.sh" ;;
     "Cargar datos de prueba")     bash "$MODULE_DIR/commands/seed-test-data.sh" ;;
     "Ejecutar esquema de la base de datos") bash "$MODULE_DIR/commands/run-schema.sh" ;;
+    "Correr backup ahora") bash "$MODULE_DIR/commands/backup.sh" ;;
     "--- [DESTRUCTIVO] ---") log "Es un separador, no una accion. Elegi una opcion valida." ;;
     "Resetear esquema (elimina TODAS las tablas)") bash "$MODULE_DIR/commands/reset-schema.sh" ;;
     "Volver al menu principal") exit 0 ;;

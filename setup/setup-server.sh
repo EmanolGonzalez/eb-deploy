@@ -162,6 +162,18 @@ Authentication__Audience="CHANGE_ME"
 # Si esta en CHANGE_ME, el setup ofrece autogenerar y muestra el valor para backup.
 PiiEncryption__HashKeyBase64="CHANGE_ME"
 
+# --- BACKUP DE BASE DE DATOS ---
+# Passphrase simetrica (AES-256) para cifrar los dumps de mariadb-dump.
+# Deliberadamente DISTINTA de la clave RSA de la app (secrets/rsa-private-key.pem):
+# si alguien se lleva solo el archivo de backup, o solo compromete esta VM,
+# necesita ademas esta passphrase para poder leerlo.
+# Si esta en CHANGE_ME, el setup ofrece autogenerar y muestra el valor para backup.
+Backup__EncryptionPassphrase="CHANGE_ME"
+# Directorio donde quedan los dumps cifrados en esta VM (la de la app, NO la de la BD).
+Backup__Dir="/app/backups"
+# Dias de retencion local antes de borrar backups viejos.
+Backup__RetentionDays="14"
+
 # --- TRIBUNAL SERVICES ---
 # NetworkScope: "Internal" o "External"
 TribunalServices__NetworkScope="Internal"
@@ -340,6 +352,40 @@ generate_pii_hash_key() {
   echo
 }
 
+generate_backup_passphrase() {
+  # Si Backup__EncryptionPassphrase es CHANGE_ME o esta vacia, autogenerar y
+  # persistir en config.env. Mostrar el valor — el operador DEBE respaldarlo
+  # fuera del server (si lo pierde, los backups viejos quedan ilegibles para
+  # siempre; no hay forma de re-derivarla).
+  local current="${Backup__EncryptionPassphrase:-}"
+  if [[ -n "$current" && "$current" != "CHANGE_ME" ]]; then
+    log "Backup__EncryptionPassphrase ya esta configurada."
+    return
+  fi
+
+  if ! command -v openssl &>/dev/null; then
+    warn "openssl no disponible. Generala manualmente y editala en config.env:"
+    warn "  Backup__EncryptionPassphrase=<openssl rand -base64 32>"
+    return
+  fi
+
+  local new_key
+  new_key="$(openssl rand -base64 32)"
+  update_config_value "Backup__EncryptionPassphrase" "$new_key"
+  Backup__EncryptionPassphrase="$new_key"
+
+  echo
+  warn "=================================================================="
+  warn "  Backup__EncryptionPassphrase fue AUTOGENERADA."
+  warn "  Valor: $new_key"
+  warn ""
+  warn "  RESPALDA esta passphrase FUERA del server (vault, gestor de secretos)."
+  warn "  Si se pierde, los backups cifrados ya generados quedan ILEGIBLES"
+  warn "  para siempre — no hay forma de recuperarlos ni de re-derivarla."
+  warn "=================================================================="
+  echo
+}
+
 generate_rsa_key() {
   local pem_path="/app/secrets/rsa-private-key.pem"
   if [[ -f "$pem_path" ]]; then
@@ -398,6 +444,7 @@ setup_config() {
   load_config
 
   generate_pii_hash_key
+  generate_backup_passphrase
 
   check_config_version
 }
@@ -547,6 +594,38 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+SYSTEMDEOF
+}
+
+render_backup_service_unit() {
+  cat <<SYSTEMDEOF
+[Unit]
+Description=Backup cifrado de MariaDB (dump remoto + retencion)
+After=network.target
+
+[Service]
+Type=oneshot
+User=${SERVICE_USER}
+Group=${SERVICE_GROUP}
+EnvironmentFile=/app/config/config.env
+ExecStart=/bin/bash /app/deploy/modules/database/commands/backup.sh --non-interactive
+StandardOutput=journal
+StandardError=journal
+SYSTEMDEOF
+}
+
+render_backup_timer_unit() {
+  cat <<SYSTEMDEOF
+[Unit]
+Description=Disparador diario de backup.service
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target
 SYSTEMDEOF
 }
 
@@ -790,6 +869,20 @@ else
   systemctl enable backend
   warn "backend.service cambio. Para aplicar: systemctl restart backend"
 fi
+
+# 6b. Backup automatico (systemd timer, idempotente con drift detection)
+log "Verificando backup.service / backup.timer..."
+backup_service_expected="$(render_backup_service_unit)"
+backup_timer_expected="$(render_backup_timer_unit)"
+service_synced=0
+timer_synced=0
+apply_file_if_drifted /etc/systemd/system/backup.service "$backup_service_expected" "backup.service" && service_synced=1
+apply_file_if_drifted /etc/systemd/system/backup.timer "$backup_timer_expected" "backup.timer" && timer_synced=1
+if [[ "$service_synced" -eq 0 || "$timer_synced" -eq 0 ]]; then
+  systemctl daemon-reload
+fi
+systemctl enable --now backup.timer
+ok "backup.timer activo (corre backup.service diario a las 03:00 +/- 10min)."
 
 # 7. Registrar CLI global 'deploy'
 log "Registrando CLI global 'deploy'..."

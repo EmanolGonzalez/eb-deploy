@@ -419,6 +419,27 @@ bash configure-internal-https.sh
 
 Crea o actualiza el virtual host Nginx para subdominio interno con certificado TLS y proxy `/api` al backend.
 
+### Backup de base de datos
+
+Requiere **dos VMs separadas** (una para la BD, otra para la app) — este toolkit corre en la VM de la app y hace `mariadb-dump` **remoto** contra la BD via `ConnectionStrings__MariaDB`. El dump cifrado queda en `Backup__Dir` (default `/app/backups`) **en la VM de la app**, no en la de la BD — eso ya es un segundo medio real, no una copia en el mismo disco.
+
+- `deploy system setup` autogenera `Backup__EncryptionPassphrase` la primera vez (igual que `PiiEncryption__HashKeyBase64`) y la muestra una sola vez — **respaldala fuera del servidor**. Sin ella, los backups cifrados quedan ilegibles para siempre.
+- Corre automaticamente todos los dias a las 03:00 (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh`.
+- Manual: `deploy menu` → Database → "Correr backup ahora", o `bash modules/database/commands/backup.sh`.
+- Retencion local configurable en `Backup__RetentionDays` (default 14 dias) — borra automaticamente los `.sql.gz.enc` mas viejos.
+- Ver logs: `journalctl -u backup.service -n 50`.
+
+**Restaurar / descifrar un backup:**
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:<Backup__EncryptionPassphrase>" \
+  -in /app/backups/<archivo>.sql.gz.enc -out restore.sql.gz
+gunzip restore.sql.gz
+mariadb -h <server> -P <port> -u<user> -p -D <database> < restore.sql
+```
+
+> **Pendiente conocido:** hoy el backup solo vive en la VM de la app — un segundo medio, no offsite real (misma ubicacion/proveedor). Si mas adelante hay un tercer destino (otro servidor, storage cloud), agregar un paso de copia adicional al final de `backup.sh` es un cambio chico, no un rediseno.
+
 ---
 
 ## Operacion de servicios y logs
