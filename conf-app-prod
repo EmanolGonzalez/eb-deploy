@@ -1,0 +1,114 @@
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name entrega-biometrica.tribunal-electoral.gob.pa;
+    server_tokens off;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name entrega-biometrica.tribunal-electoral.gob.pa;
+    server_tokens off;
+
+    ssl_certificate     /etc/nginx/ssl/entrega-biometrica.tribunal-electoral.gob.pa.crt;
+    ssl_certificate_key /etc/nginx/ssl/entrega-biometrica.tribunal-electoral.gob.pa.key;
+
+    # TLS profile: Mozilla intermediate, ECDHE-only (sin DHE = sin dhparam).
+    # Todos los ciphers tienen forward secrecy y son AEAD (GCM o ChaCha20-Poly1305).
+    # TLS 1.3 negocia sus propios ciphers (TLS_AES_128_GCM_SHA256 etc) automaticamente.
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_ciphers               ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_session_tickets       off;
+    ssl_session_timeout       1d;
+    ssl_session_cache         shared:SSL:10m;
+
+    # OCSP stapling: el server adjunta el estado de revocacion al handshake,
+    # asi el browser no pregunta al CA por separado (performance + privacidad).
+    # Requiere DNS para queries al responder (o.pki.goog para Google Trust).
+    ssl_stapling              on;
+    ssl_stapling_verify       on;
+    ssl_trusted_certificate   /etc/nginx/ssl/entrega-biometrica.tribunal-electoral.gob.pa.crt;
+    resolver                  1.1.1.1 8.8.8.8 valid=60s;
+    resolver_timeout          5s;
+
+    # Security headers (always = se aplican tambien a respuestas de error).
+    # HSTS: forza HTTPS por 1 ano desde la primera visita.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options              DENY                            always;
+    add_header X-Content-Type-Options       nosniff                         always;
+    add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
+
+    # CSP: SPA estatica, sin nonce por request (nginx no genera uno por
+    # archivo). El unico <style> inline (loader inicial en index.html) se
+    # permite por HASH exacto -- si se edita ese bloque hay que recalcular
+    # el hash (ver comentario en frontend/index.html) y actualizarlo aqui.
+    # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
+    # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
+    # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-LOy47uWr5LNvMg2rDFIM+vZSobSIzfq6C4ejnt83WxI='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+
+    # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
+    # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
+    # Microfono no se usa en ningun lado -- se bloquea.
+    add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
+
+    # HTML/SPA: revalidar SIEMPRE. El index.html apunta a los JS hasheados;
+    # si se cachea, el browser sigue cargando el bundle viejo tras un deploy.
+    # 'no-cache' = puede guardar pero DEBE revalidar (nginx responde 304 si no cambio).
+    add_header Cache-Control "no-cache" always;
+
+    root /app/frontend/current;
+    index index.html;
+
+    # mime.types de nginx no trae .mjs (solo .js -> application/javascript).
+    # pdf.js (via Vite) sirve su worker como pdf.worker.min-*.mjs; sin esto
+    # nginx cae a application/octet-stream y el browser bloquea el modulo
+    # ("Strict MIME type checking") por script-src 'self' + module script.
+    # CRITICO: un bloque 'types{}' en server{} REEMPLAZA el mapa completo de
+    # mime.types heredado (no lo extiende) -- sin el include de abajo, TODO
+    # (html, css, js, imagenes) cae a application/octet-stream y el browser
+    # ofrece descargar en vez de renderizar. include reinyecta el mapa base.
+    include /etc/nginx/mime.types;
+    types {
+        application/javascript mjs;
+    }
+
+
+    # Assets con hash en el nombre (Vite): el contenido nunca cambia para un
+    # mismo nombre -> cache largo e inmutable. (Este location con add_header
+    # propio NO hereda los del server; por eso re-agregamos nosniff.)
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /hubs {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+    }
+}
