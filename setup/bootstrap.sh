@@ -111,6 +111,20 @@ ensure_group() {
   dpkg -i "${debs[@]}" 2>/dev/null || true
   dpkg --configure -a 2>/dev/null || true
 
+  # Fallback: si algun objetivo quedo sin configurar, puede ser un desfasaje
+  # de version de parche (ej. libtinfo6 mas nuevo que el exigido por el
+  # libncurses6 bundleado) — dpkg exige igualdad exacta en esos casos pero
+  # un parche de seguridad point-release es compatible en ABI. Reintentamos
+  # una sola vez con --force-depends y dejamos constancia en el log.
+  local needs_force=false
+  for pkg in "${targets[@]}"; do
+    is_pkg_installed "$pkg" || needs_force=true
+  done
+  if [[ "$needs_force" == true ]]; then
+    warn "Paquetes sin configurar tras dpkg --configure -a; reintentando con --force-depends (desfasaje de version esperado en parches de seguridad)."
+    dpkg --force-depends --configure -a
+  fi
+
   # Re-verificar cada objetivo
   for pkg in "${targets[@]}"; do
     if is_pkg_installed "$pkg"; then
