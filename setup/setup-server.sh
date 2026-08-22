@@ -565,6 +565,14 @@ Environment=ASPNETCORE_URLS=http://+:5000
 # cache asi el render de texto de la cedula no se degrada.
 Environment=XDG_CACHE_HOME=/tmp
 
+# Mismo problema que fontconfig pero con el "first-time use" del dotnet CLI:
+# con ProtectHome=yes + usuario sin home, dotnet no puede escribir en
+# $HOME/.dotnet y el proceso muere con UnauthorizedAccessException en cada
+# arranque (crash-loop). Lo desactivamos y le damos un HOME de CLI escribible.
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=DOTNET_NOLOGO=1
+Environment=DOTNET_CLI_HOME=/tmp
+
 # --- Filesystem isolation ---
 ProtectSystem=strict
 ProtectHome=yes
@@ -697,7 +705,7 @@ server {
     # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
     # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
     # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-g1QKmzaBQB8PYHILLpE3sccnhXgONiKzyUCs1r/BftM='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-LOy47uWr5LNvMg2rDFIM+vZSobSIzfq6C4ejnt83WxI='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 
     # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
     # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
@@ -711,6 +719,19 @@ server {
 
     root /app/frontend/current;
     index index.html;
+
+    # mime.types de nginx no trae .mjs (solo .js -> application/javascript).
+    # pdf.js (via Vite) sirve su worker como pdf.worker.min-*.mjs; sin esto
+    # nginx cae a application/octet-stream y el browser bloquea el modulo
+    # ("Strict MIME type checking") por script-src 'self' + module script.
+    # CRITICO: un bloque 'types{}' en server{} REEMPLAZA el mapa completo de
+    # mime.types heredado (no lo extiende) -- sin el include de abajo, TODO
+    # (html, css, js, imagenes) cae a application/octet-stream y el browser
+    # ofrece descargar en vez de renderizar. include reinyecta el mapa base.
+    include /etc/nginx/mime.types;
+    types {
+        application/javascript mjs;
+    }
 
     # Assets con hash en el nombre (Vite): el contenido nunca cambia para un
     # mismo nombre -> cache largo e inmutable. (Este location con add_header
@@ -755,7 +776,7 @@ server {
     add_header X-Frame-Options              DENY                            always;
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-g1QKmzaBQB8PYHILLpE3sccnhXgONiKzyUCs1r/BftM='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-LOy47uWr5LNvMg2rDFIM+vZSobSIzfq6C4ejnt83WxI='; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
     add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
 
     # HTML/SPA: revalidar SIEMPRE para tomar el bundle nuevo tras un deploy.
@@ -763,6 +784,19 @@ server {
 
     root /app/frontend/current;
     index index.html;
+
+    # mime.types de nginx no trae .mjs (solo .js -> application/javascript).
+    # pdf.js (via Vite) sirve su worker como pdf.worker.min-*.mjs; sin esto
+    # nginx cae a application/octet-stream y el browser bloquea el modulo
+    # ("Strict MIME type checking") por script-src 'self' + module script.
+    # CRITICO: un bloque 'types{}' en server{} REEMPLAZA el mapa completo de
+    # mime.types heredado (no lo extiende) -- sin el include de abajo, TODO
+    # (html, css, js, imagenes) cae a application/octet-stream y el browser
+    # ofrece descargar en vez de renderizar. include reinyecta el mapa base.
+    include /etc/nginx/mime.types;
+    types {
+        application/javascript mjs;
+    }
 
     # Assets con hash en el nombre (Vite): el contenido nunca cambia para un
     # mismo nombre -> cache largo e inmutable. (Este location con add_header
