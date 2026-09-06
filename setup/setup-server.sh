@@ -705,7 +705,7 @@ server {
     # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
     # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
     # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-LOy47uWr5LNvMg2rDFIM+vZSobSIzfq6C4ejnt83WxI=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-qzaqiAx40zu0/HUVJnKDRLGeAE1Zd90A3zp1BcNSuXQ=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 
     # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
     # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
@@ -776,7 +776,7 @@ server {
     add_header X-Frame-Options              DENY                            always;
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-LOy47uWr5LNvMg2rDFIM+vZSobSIzfq6C4ejnt83WxI=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-qzaqiAx40zu0/HUVJnKDRLGeAE1Zd90A3zp1BcNSuXQ=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
     add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
 
     # HTML/SPA: revalidar SIEMPRE para tomar el bundle nuevo tras un deploy.
