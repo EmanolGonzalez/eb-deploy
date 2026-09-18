@@ -16,6 +16,7 @@ source "$DEPLOYMENT_CORE_DIR/filesystem.sh"
 source "$DEPLOYMENT_CORE_DIR/service.sh"
 source "$DEPLOYMENT_CORE_DIR/health.sh"
 source "$DEPLOYMENT_CORE_DIR/checksum.sh"
+source "$DEPLOYMENT_CORE_DIR/csp.sh"
 source "$DEPLOYMENT_CORE_DIR/audit.sh"
 
 INSTALL_BASE="${INSTALL_BASE:-/app}"
@@ -26,6 +27,26 @@ require_root() {
     err "Este script debe ejecutarse como root."
     exit 1
   fi
+}
+
+# -----------------------------------------------------------------------------
+# sync_frontend_csp <component>
+#   Cada vez que cambia el frontend ACTIVO (install / update / rollback), el
+#   index.html servido es otro archivo y su <style> inline puede tener otro
+#   hash. Resincronizamos la CSP contra el archivo realmente desplegado, que
+#   es el que el browser recibe y hashea.
+#
+#   No aborta el lifecycle si falla: el deploy ya ocurrio y revertirlo por
+#   esto seria peor. Avisa fuerte y sigue (el sintoma seria el loader inicial
+#   sin estilos, con un error de CSP en la consola del browser).
+# -----------------------------------------------------------------------------
+sync_frontend_csp() {
+  local component="$1"
+  [[ "$component" == "frontend" ]] || return 0
+
+  echo
+  log "Sincronizando hash CSP del loader inicial..."
+  sync_csp_style_hash "${INSTALL_BASE}/${component}/current/index.html" || true
 }
 
 # -----------------------------------------------------------------------------
@@ -68,6 +89,8 @@ install_component() {
 
   extract_rar "$component" "$version" "$artifact_path" || exit 1
   update_symlink "$component" "$RELEASE_DIR"
+
+  sync_frontend_csp "$component"
 
   # Backend: aplica migraciones EF automaticas al arrancar. Para que la
   # migracion corra UNA sola vez y limpia, damos control del encendido al
@@ -137,6 +160,8 @@ update_component() {
   local target_dir="${releases_dir}/${target_version}"
   update_symlink "$component" "$target_dir"
 
+  sync_frontend_csp "$component"
+
   if [[ "$component" == "backend" ]]; then
     restart_service_soft "backend"
   fi
@@ -198,6 +223,8 @@ rollback_component() {
   local current_link="${INSTALL_BASE}/${component}/current"
   ln -sfn "$target_dir" "$current_link"
   ok "Symlink restaurado."
+
+  sync_frontend_csp "$component"
 
   if [[ "$component" == "backend" ]]; then
     restart_service_soft "backend"
