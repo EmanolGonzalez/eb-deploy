@@ -76,6 +76,17 @@ build_backend() {
   local publish_dir="${REPO_ROOT}/backend/publish"
   log "Publicando backend (dotnet publish)..."
 
+  # Clean slate. 'dotnet publish -o' SOBRESCRIBE pero no borra: los archivos
+  # de un publish anterior sobreviven y se cuelan en el .rar. Sin esto, un
+  # publish viejo sin los flags de abajo deja sus 106 MB de runtimes/, los
+  # .pdb, el Api.exe de Windows y las carpetas de idioma dentro del artefacto,
+  # y el recorte a linux-x64 no sirve de nada. Mismo motivo por el que
+  # extract_rar limpia el release dir antes de extraer.
+  if [[ -d "$publish_dir" ]]; then
+    log "Limpiando publish anterior..."
+    rm -rf "${publish_dir:?}"
+  fi
+
   # Publish acotado al server real (Ubuntu 24.04 amd64). Sin estos flags el
   # publish pesaba 166 MB y 295 archivos, de los cuales sobraban:
   #   -r linux-x64 --self-contained false
@@ -104,7 +115,7 @@ build_backend() {
     err "El publish no genero Api.dll — el servicio no podria arrancar."
     exit 1
   fi
-  ok "Backend publicado."
+  ok "Backend publicado ($(du -sh "$publish_dir" | cut -f1), $(find "$publish_dir" -type f | wc -l) archivos)."
 
   GENERATED_RAR="${REPO_ROOT}/backend.rar"
   rm -f "$GENERATED_RAR"
