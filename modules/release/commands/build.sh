@@ -43,8 +43,13 @@ find_rar() {
 
 build_frontend() {
   local dist_dir="${REPO_ROOT}/frontend/dist"
-  log "Compilando frontend (npm run build)..."
-  (cd "${REPO_ROOT}/frontend" && npm run build)
+  # pnpm, no npm: package.json declara "packageManager": "pnpm@11.1.1".
+  # build:prod en vez de build: los dos compilan con --mode production (mismo
+  # .env.production, mismo bundle), pero build:prod corre 'vue-tsc --noEmit'
+  # antes. Un artefacto de release no deberia salir sin chequeo de tipos,
+  # igual que no sale sin pasar el lint de scripts.
+  log "Compilando frontend (pnpm run build:prod)..."
+  (cd "${REPO_ROOT}/frontend" && pnpm run build:prod)
   ok "Frontend compilado."
 
   # Hash CSP del <style> inline del loader, calculado sobre el BUILD (no sobre
@@ -57,10 +62,14 @@ build_frontend() {
   fi
   ok "Hash CSP del loader: sha256-${CSP_STYLE_HASH}"
 
-  GENERATED_RAR="${REPO_ROOT}/app.rar"
+  # El nombre es el del componente, no 'app.rar': ambos builds escribian la
+  # MISMA ruta, asi que compilar frontend y despues backend pisaba el primero
+  # y el renombre quedaba a mano. Ademas es el nombre exacto que espera el
+  # server en /app/artifacts/.
+  GENERATED_RAR="${REPO_ROOT}/frontend.rar"
   rm -f "$GENERATED_RAR"
   (cd "$dist_dir" && "$RAR_EXE" a -r "$GENERATED_RAR" .)
-  ok "app.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
+  ok "frontend.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
 }
 
 build_backend() {
@@ -97,10 +106,10 @@ build_backend() {
   fi
   ok "Backend publicado."
 
-  GENERATED_RAR="${REPO_ROOT}/app.rar"
+  GENERATED_RAR="${REPO_ROOT}/backend.rar"
   rm -f "$GENERATED_RAR"
   (cd "$publish_dir" && "$RAR_EXE" a -r "$GENERATED_RAR" .)
-  ok "app.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
+  ok "backend.rar generado: $GENERATED_RAR ($(du -h "$GENERATED_RAR" | cut -f1))"
 }
 
 find_rar
@@ -138,9 +147,13 @@ divider
 printf "  Componente : %s\n" "$COMPONENT"
 printf "  Version    : %s\n" "$VERSION"
 printf "  Archivo    : %s\n" "$GENERATED_RAR"
+# SHA256 del artefacto: se informa al cliente para que verifique que el FTP
+# no lo corrompio antes de instalar.
+printf "  SHA256     : %s\n" "$(sha256sum "$GENERATED_RAR" | awk '{print $1}')"
 if [[ "$COMPONENT" == "frontend" ]]; then
   printf "  Hash CSP   : sha256-%s\n" "$CSP_STYLE_HASH"
 fi
 divider
 echo
-log "Copia este archivo al servidor: scp app.rar user@server:/tmp/"
+log "Copialo al servidor por FTP (modo binario):"
+log "  ${COMPONENT}.rar -> /app/artifacts/${COMPONENT}.rar"
