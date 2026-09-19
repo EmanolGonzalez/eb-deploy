@@ -145,6 +145,12 @@ Authentication__Authority="CHANGE_ME"
 # Ejemplo: "certified-delivery-api"
 Authentication__Audience="CHANGE_ME"
 
+# Issuer que el backend acepta en el token. OBLIGATORIO: ConfigurationValidator
+# lo exige y sin el, el backend aborta al arrancar con "Missing required
+# configuration values" y systemd lo deja en crash-loop por Restart=always.
+# Con Entra suele ser: "https://sts.windows.net/<TENANT_ID>/"
+Authentication__ValidIssuer="CHANGE_ME"
+
 # Server interno: si el Identity Server es HTTP (sin SSL valido), en Production
 # el backend EXIGE que Authority sea HTTPS y NO ARRANCA al bajar el metadata.
 # Descomenta esto para permitir Authority por HTTP en redes internas:
@@ -179,13 +185,15 @@ Backup__RetentionDays="14"
 # NetworkScope: "Internal" o "External"
 TribunalServices__NetworkScope="Internal"
 
-# Servers del tribunal (hostnames base por ambiente). Completar al menos el par
-# que coincide con NetworkScope arriba. Si NetworkScope=Internal, Servers__Internal__*
-# es obligatorio; los External pueden quedar vacios.
-# TribunalServices__Servers__Internal__Dev=
-# TribunalServices__Servers__Internal__Prod=
-# TribunalServices__Servers__External__Dev=
-# TribunalServices__Servers__External__Prod=
+# Servers del tribunal (hostnames base por ambiente).
+# LOS CUATRO SON OBLIGATORIOS, sin importar NetworkScope: ConfigurationValidator
+# los exige a todos y el backend aborta al arrancar si falta alguno, quedando en
+# crash-loop por Restart=always. Si un ambiente no se usa, poner igual un valor
+# de relleno (ej. la misma URL que su par) en vez de dejarlo vacio.
+TribunalServices__Servers__Internal__Dev="CHANGE_ME"
+TribunalServices__Servers__Internal__Prod="CHANGE_ME"
+TribunalServices__Servers__External__Dev="CHANGE_ME"
+TribunalServices__Servers__External__Prod="CHANGE_ME"
 
 # Credenciales del tribunal (descomentar y completar las que se usen)
 # TribunalServices__Credentials__1__Username=
@@ -251,13 +259,14 @@ detect_editor() {
 }
 
 validate_config() {
-  local mariadb frontend authority audience
+  local mariadb frontend authority audience valid_issuer
   # Parser sin source — un valor con $(comando) NO se ejecuta.
   load_config || return 1
   mariadb="${ConnectionStrings__MariaDB:-}"
   frontend="${FrontendProdUrl:-}"
   authority="${Authentication__Authority:-}"
   audience="${Authentication__Audience:-}"
+  valid_issuer="${Authentication__ValidIssuer:-}"
 
   local errors=()
 
@@ -276,6 +285,23 @@ validate_config() {
   if [[ "$audience" == "CHANGE_ME" ]]; then
     errors+=("Authentication__Audience tiene CHANGE_ME. Reemplazalo por el nombre del API.")
   fi
+
+  # Las claves de abajo las exige ConfigurationValidator del backend. Sin ellas
+  # el proceso aborta al arrancar ("Missing required configuration values") y
+  # systemd lo reintenta para siempre por Restart=always. Mejor frenarlo aca,
+  # con un mensaje que diga que falta, que dejarlo en crash-loop en el server.
+  if [[ -z "$valid_issuer" || "$valid_issuer" == "CHANGE_ME" ]]; then
+    errors+=("Authentication__ValidIssuer falta o tiene CHANGE_ME. El backend no arranca sin el.")
+  fi
+
+  local srv
+  for srv in Internal__Dev Internal__Prod External__Dev External__Prod; do
+    local var="TribunalServices__Servers__${srv}"
+    local val="${!var:-}"
+    if [[ -z "$val" || "$val" == "CHANGE_ME" ]]; then
+      errors+=("${var} falta o tiene CHANGE_ME. El backend exige los CUATRO, sin importar NetworkScope.")
+    fi
+  done
 
   # SSL / trust contra servers internos sin cert valido (funcion compartida en
   # core/config.sh — mismo aviso aca y en 'system edit-config'). No bloquea.
