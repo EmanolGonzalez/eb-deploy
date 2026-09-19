@@ -435,7 +435,12 @@ generate_rsa_key() {
 
 config_has_placeholders() {
   [[ -f "$CONFIG_FILE" ]] || return 1
-  grep -q 'CHANGE_ME' "$CONFIG_FILE"
+  # Solo lineas de valor: los comentarios de la plantilla mencionan CHANGE_ME
+  # (el encabezado de instrucciones y las notas de autogeneracion), asi que un
+  # grep suelto daba TRUE siempre y el aviso "el backend NO va a arrancar"
+  # salia hasta con la config completa. Una alarma que suena siempre no se lee,
+  # y entonces no avisa cuando de verdad falta algo.
+  grep -qE '^[^#]*CHANGE_ME' "$CONFIG_FILE"
 }
 
 setup_config() {
