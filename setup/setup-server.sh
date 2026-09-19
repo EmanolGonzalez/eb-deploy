@@ -20,6 +20,7 @@ DEPLOY_BASE="$(cd "$SCRIPT_DIR/.." && pwd)"
 [[ -f "$DEPLOY_BASE/core/logger.sh" ]] && source "$DEPLOY_BASE/core/logger.sh"
 [[ -f "$DEPLOY_BASE/core/config.sh" ]] && source "$DEPLOY_BASE/core/config.sh"
 [[ -f "$DEPLOY_BASE/core/system.sh" ]] && source "$DEPLOY_BASE/core/system.sh"
+[[ -f "$DEPLOY_BASE/core/csp.sh" ]] && source "$DEPLOY_BASE/core/csp.sh"
 
 # Version esperada del schema de config.env. Subir cuando se agregan o
 # eliminan variables incompatibles. check_config_version() avisa si el
@@ -638,6 +639,13 @@ SYSTEMDEOF
 }
 
 render_nginx_site_config() {
+  # Hash CSP del <style> inline del loader: se LEE del valor persistido por
+  # el ultimo "frontend install" (core/csp.sh). No se hardcodea aca porque se
+  # desincronizaba en silencio con cada build del frontend y la CSP terminaba
+  # bloqueando el bloque (loader sin estilos, sin error del lado del server).
+  local csp_style_hash
+  csp_style_hash="$(read_csp_style_hash)"
+
   # Heredoc unquoted: expande ${SERVER_NAME_VALUE} y ${NGINX_SSL_*} de bash.
   # Las variables de nginx ($host, $uri, etc) van escapadas con \ para que
   # queden literales en la salida.
@@ -705,7 +713,7 @@ server {
     # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
     # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
     # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-UL7AVNj395fFNpIby5TtON1tjKWNYT7FdsOtKfrEmQQ=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 
     # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
     # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
@@ -776,7 +784,7 @@ server {
     add_header X-Frame-Options              DENY                            always;
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-UL7AVNj395fFNpIby5TtON1tjKWNYT7FdsOtKfrEmQQ=' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
     add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
 
     # HTML/SPA: revalidar SIEMPRE para tomar el bundle nuevo tras un deploy.
