@@ -26,12 +26,12 @@ SET @rol_id = (
 );
 
 -- Insertar solo si existe usuario, existe rol y no lo tiene ya
-INSERT INTO user_roles (UsuarioRolId, UsuarioId, RolId, CreatedAt, CreatedBy, IsDeleted)
+INSERT INTO user_roles (UsuarioRolId, UserId, RolId, CreatedAt, CreatedBy, IsDeleted)
 SELECT UUID(), @usuario_id, @rol_id, UTC_TIMESTAMP(), 'SYSTEM_PII_SCRIPT', 0
 WHERE @usuario_id IS NOT NULL AND @rol_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM user_roles
-    WHERE UsuarioId = @usuario_id AND RolId = @rol_id AND IsDeleted = 0
+    WHERE UserId = @usuario_id AND RolId = @rol_id AND IsDeleted = 0
   );
 
 SELECT
