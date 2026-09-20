@@ -50,7 +50,7 @@ show_main_help() {
   echo "             check | status | set-endpoint | full"
   echo
   echo -e "  \033[1;34mdatabase\033[0m   Conexion, esquema y datos de prueba de BD"
-  echo "             check | set-developer | seed-test-data | run-schema | reset-schema"
+  echo "             check | set-developer | run-schema | reset-schema"
   echo
   echo -e "  \033[1;34mnginx\033[0m      Configuracion de Nginx"
   echo "             configure-https | configure-letsencrypt | reload"
