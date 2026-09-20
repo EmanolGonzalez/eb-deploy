@@ -18,7 +18,6 @@ while true; do
   menu_select "Selecciona una accion:" \
     "Verificar conexion a BD" \
     "Asignar rol Developer" \
-    "Cargar datos de prueba" \
     "Ejecutar esquema de la base de datos" \
     "Correr backup ahora" \
     "--- [DESTRUCTIVO] ---" \
@@ -28,7 +27,6 @@ while true; do
   case "$MENU_SELECTION" in
     "Verificar conexion a BD") bash "$MODULE_DIR/commands/check.sh" ;;
     "Asignar rol Developer") bash "$MODULE_DIR/commands/set-developer.sh" ;;
-    "Cargar datos de prueba")     bash "$MODULE_DIR/commands/seed-test-data.sh" ;;
     "Ejecutar esquema de la base de datos") bash "$MODULE_DIR/commands/run-schema.sh" ;;
     "Correr backup ahora") bash "$MODULE_DIR/commands/backup.sh" ;;
     "--- [DESTRUCTIVO] ---") log "Es un separador, no una accion. Elegi una opcion valida." ;;

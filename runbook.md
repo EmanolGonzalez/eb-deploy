@@ -94,7 +94,7 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 | `ops-menu.sh` | Consola de operaciones — entrypoint del sistema en el servidor |
 | `setup/setup-server.sh` | Aprovisionamiento inicial: instala dependencias, crea config.env |
 | `install.sh` | Instala un componente desde un archivo app.rar local |
-| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck falla |
+| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck | set-developer | run-schema | reset-schemafalla |
 | `rollback.sh` | Restaura un componente a una version instalada localmente |
 | `release.sh` | Construye y empaqueta un componente en app.rar (se ejecuta desde dev) |
 | `healthcheck.sh` | Valida que backend/frontend esten operativos |
@@ -305,7 +305,7 @@ bash /app/deploy/bin/deploy menu
 El menu modular tiene submenus por dominio:
 - **Backend / Frontend** — install, update, rollback
 - **App Health** — full, check, status, set-endpoint
-- **Database** — check, set-developer, seed-test-data, run-schema, reset-schema
+- **Database** — check, set-developer, run-schema, reset-schema
 - **Nginx** — configure-https, reload
 - **System** — setup, edit-config, uninstall, services, rotate-pem, rotate-pii, audit, lint
 - **Release** — build
