@@ -73,13 +73,31 @@ compute_csp_style_hash() {
   # bloque pasaba desapercibido y openssl terminaba hasheando la cadena vacia
   # (da 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=, que parece un hash
   # perfectamente valido y bloquea el loader).
+  # La extraccion va del PRIMER <style...> a su </style>, con una expresion
+  # regular sobre la etiqueta de apertura.
+  #
+  # Antes buscaba el literal "<style>" con rindex, hacia atras desde el primer
+  # "</style>". La idea era saltear el "<style>" que aparece dentro de un
+  # comentario HTML ANTES del bloque. Pero el mismo truco se da vuelta en
+  # cuanto el texto "<style>" aparece DENTRO del bloque: rindex encuentra esa
+  # mencion y el hash sale de un fragmento del CSS, no del bloque entero.
+  #
+  # Paso exactamente eso: un comentario dentro del CSS explicando esta misma
+  # regla de CSP mencionaba "<style>", el hash se calculo sobre los ultimos
+  # 1941 bytes de un bloque de 4639, y el navegador bloqueo el loader completo
+  # reclamando el hash del bloque de verdad. El comentario escrito para
+  # explicar la regla fue el que la rompio.
+  #
+  # Con el primer <style de apertura no hay ambiguedad: lo que venga despues,
+  # comentarios incluidos, es contenido.
   if ! perl -0777 -ne '
-    my $e = index($_, "</style>");
+    my $html = $_;
+    $html =~ s/<!--.*?-->//gs;
+    exit 1 unless $html =~ /<style\b[^>]*>/;
+    my $s = $+[0];
+    my $e = index($html, "</style>", $s);
     exit 1 if $e < 0;
-    my $s = rindex($_, "<style>", $e);
-    exit 1 if $s < 0;
-    $s += length("<style>");
-    print substr($_, $s, $e - $s);
+    print substr($html, $s, $e - $s);
   ' "$index_file" > "$tmp_block"; then
     rm -f "$tmp_block"
     err "No se encontro el bloque <style> del loader en: $index_file"
