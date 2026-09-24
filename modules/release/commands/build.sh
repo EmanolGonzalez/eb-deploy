@@ -48,9 +48,22 @@ build_frontend() {
   # .env.production, mismo bundle), pero build:prod corre 'vue-tsc --noEmit'
   # antes. Un artefacto de release no deberia salir sin chequeo de tipos,
   # igual que no sale sin pasar el lint de scripts.
-  log "Compilando frontend (pnpm run build:prod)..."
-  (cd "${REPO_ROOT}/frontend" && pnpm run build:prod)
-  ok "Frontend compilado."
+  #
+  # FRONTEND_BUILD_MODE elige que .env se HORNEA en el bundle:
+  #   production (default) -> .env.production  (build:prod, cliente real)
+  #   localcloud           -> .env.localcloud  (build:localcloud, VM de ensayo)
+  # Las VITE_* se compilan, no se leen en runtime: si el modo es el equivocado
+  # el bundle queda con otro tenant/redirect-uri y hay que reconstruir.
+  local mode="${FRONTEND_BUILD_MODE:-production}"
+  local build_script
+  case "$mode" in
+    production) build_script="build:prod" ;;
+    localcloud) build_script="build:localcloud" ;;
+    *) err "FRONTEND_BUILD_MODE invalido: '$mode' (usa: production | localcloud)"; exit 1 ;;
+  esac
+  log "Compilando frontend (modo: $mode -> pnpm run $build_script)..."
+  (cd "${REPO_ROOT}/frontend" && pnpm run "$build_script")
+  ok "Frontend compilado (modo: $mode)."
 
   # Hash CSP del <style> inline del loader, calculado sobre el BUILD (no sobre
   # el fuente: Vite minifica y normaliza CRLF -> LF, y el hash del fuente no
@@ -162,6 +175,7 @@ printf "  Archivo    : %s\n" "$GENERATED_RAR"
 # no lo corrompio antes de instalar.
 printf "  SHA256     : %s\n" "$(sha256sum "$GENERATED_RAR" | awk '{print $1}')"
 if [[ "$COMPONENT" == "frontend" ]]; then
+  printf "  Build mode : %s\n" "${FRONTEND_BUILD_MODE:-production}"
   printf "  Hash CSP   : sha256-%s\n" "$CSP_STYLE_HASH"
 fi
 divider
