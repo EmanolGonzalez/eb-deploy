@@ -46,11 +46,11 @@ if [[ "$MENU_SELECTION" != "SI, ENTIENDO LOS RIESGOS Y DESEO CONTINUAR" ]]; then
   exit 0
 fi
 
-# 0. Safety Check: Verificar existencia de KeyReencryptionJob
+# 0. Safety Check: Verificar el KeyReencryptionJob dentro del backend desplegado
 JOB_DIR="/app/backend/current/KeyReencryptionJob"
-if [[ ! -d "$JOB_DIR" ]]; then
-  err "No se encontro el directorio $JOB_DIR."
-  err "No se puede continuar sin la herramienta de re-encriptacion."
+if [[ ! -f "$JOB_DIR/KeyReencryptionJob.dll" ]]; then
+  err "No se encontro $JOB_DIR/KeyReencryptionJob.dll."
+  err "El job viaja dentro de backend.rar; reinstala el backend antes de rotar PII."
   exit 1
 fi
 
@@ -100,10 +100,10 @@ for entry in "${tables[@]}"; do
     IFS=":" read -r table prop col <<< "$entry"
     log "Procesando $table ($prop -> $col)..."
     
-    # Ejecutamos el job usando el environment del sistema
-    # El job ya carga la configuracion de /app/backend/KeyReencryptionJob/appsettings.json 
-    # o de variables de entorno (config.env cargado en el service)
-    sudo dotnet run --no-build "$table" --property "$prop" --encrypted-column "$col"
+    # Ejecutamos el job publicado (viene en backend.rar) con el environment
+    # del sistema: la configuracion llega por variables de entorno
+    # (config.env cargado en el service), no de appsettings.json.
+    sudo dotnet "$JOB_DIR/KeyReencryptionJob.dll" "$table" --property "$prop" --encrypted-column "$col"
     
     if [[ $? -eq 0 ]]; then
         ok "Completado: $table.$prop"

@@ -128,6 +128,22 @@ build_backend() {
     err "El publish no genero Api.dll — el servicio no podria arrancar."
     exit 1
   fi
+
+  # KeyReencryptionJob viaja DENTRO del artefacto (publish/KeyReencryptionJob/):
+  # rotate-pii.sh lo ejecuta como 'dotnet KeyReencryptionJob.dll' desde
+  # /app/backend/current/KeyReencryptionJob. Antes el job dependia de que alguien
+  # copiara la carpeta al server a mano y de 'dotnet run --no-build' sobre
+  # fuentes/obj de esa copia: frágil y nunca verificado end-to-end.
+  log "Publicando KeyReencryptionJob..."
+  dotnet publish "${REPO_ROOT}/backend/KeyReencryptionJob/KeyReencryptionJob.csproj" -c Release -o "$publish_dir/KeyReencryptionJob" --nologo \
+    -r linux-x64 --self-contained false \
+    -p:DebugType=none \
+    -p:SatelliteResourceLanguages=en
+  if [[ ! -f "$publish_dir/KeyReencryptionJob/KeyReencryptionJob.dll" ]]; then
+    err "El publish no genero KeyReencryptionJob.dll — rotate-pii no podria correr."
+    exit 1
+  fi
+
   ok "Backend publicado ($(du -sh "$publish_dir" | cut -f1), $(find "$publish_dir" -type f | wc -l) archivos)."
 
   GENERATED_RAR="${REPO_ROOT}/backend.rar"
