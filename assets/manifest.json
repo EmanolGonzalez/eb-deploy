@@ -2,8 +2,8 @@
   "version": "1.0.0",
   "target": "linux-x64",
   "dotnet": {
-    "sdk": "9.0.203",
-    "file": "dotnet-sdk-9.0.203-linux-x64.tar.gz",
+    "sdk": "10.0.401",
+    "file": "dotnet-sdk-10.0.401-linux-x64.tar.gz",
     "install_dir": "/usr/share/dotnet"
   },
   "node": {

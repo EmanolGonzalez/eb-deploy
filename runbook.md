@@ -220,7 +220,7 @@ sudo bash /app/deploy/setup/bootstrap.sh
 
 Esto instala desde `assets/` (sin internet):
 - Node.js 22.x
-- .NET 9 SDK
+- .NET 10 SDK
 - rar/unrar
 - Paquetes del sistema (curl, git, wget, tar)
 

@@ -1,7 +1,7 @@
 # Runbook — Deploy Producción (Cliente)
 
 > Guía corta y operativa para desplegar EMA en el servidor del cliente
-> (**Ubuntu 24.04, air-gapped / sin internet**). Frontend Vue + backend .NET 9.
+> (**Ubuntu 24.04, air-gapped / sin internet**). Frontend Vue + backend .NET 10.
 > Para detalle extendido ver `runbook.md`.
 
 ---

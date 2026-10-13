@@ -5,7 +5,7 @@
 set -e
 
 # Checksums (SHA-256)
-DOTNET_SDK_SHA256="c7e99b0060a274f31a29ec5e159c7133478bb30dca0366e1c5617976e6de23a3"
+DOTNET_SDK_SHA256="137268c8ad939c064ff1ee2a6fdf0899d8725377114ea012fbd1ad5fa2550418"
 NODE_SHA256="e109d76472304859a7f34f24302636a0d312101889410118e698188151811899"
 RAR_SHA256="c2e35b7190018018e698188151811899c2e35b7190018018e698188151811899" # Placeholder
 
@@ -154,14 +154,19 @@ report_packages() {
 # =============================================================================
 
 install_dotnet() {
-  if command -v dotnet &>/dev/null && dotnet --list-sdks | grep -q '^9\.'; then
-    ok "dotnet SDK 9.x ya instalado: $(dotnet --version)"
+  # Idempotente por version mayor: solo salta si ya hay un SDK 10.x.
+  # Un servidor con solo 9.x instalado NO debe saltar: el backend es net10.0.
+  if command -v dotnet &>/dev/null && dotnet --list-sdks | grep -q '^10\.'; then
+    ok "dotnet SDK 10.x ya instalado: $(dotnet --version)"
     return
   fi
 
-  local tarball="$ASSETS_DIR/dotnet/dotnet-sdk-9.0.203-linux-x64.tar.gz"
+  local tarball="$ASSETS_DIR/dotnet/dotnet-sdk-10.0.401-linux-x64.tar.gz"
   if [[ -f "$tarball" ]]; then
-    step "Instalando .NET 9 SDK desde assets"
+    step "Instalando .NET 10 SDK desde assets"
+    if dotnet --list-sdks 2>/dev/null | grep -q '^9\.'; then
+      warn "SDK 9.x detectado; instalando 10.x en paralelo (coexisten en /usr/share/dotnet)"
+    fi
     verify_checksum "$tarball" "$DOTNET_SDK_SHA256" ".NET SDK" || return 1
     mkdir -p /usr/share/dotnet
     tar -xzf "$tarball" -C /usr/share/dotnet
@@ -169,7 +174,7 @@ install_dotnet() {
     ok ".NET SDK instalado: $(dotnet --version)"
   else
     err "Asset no encontrado: $tarball"
-    err "Copia el tarball del SDK .NET 9 a assets/dotnet/ antes de ejecutar este script."
+    err "Copia el tarball del SDK .NET 10 a assets/dotnet/ antes de ejecutar este script."
     return 1
   fi
 }
