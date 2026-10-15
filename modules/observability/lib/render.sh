@@ -376,15 +376,24 @@ obs_render_grafana_datasources() {
   cat <<EOF
 # /etc/grafana/provisioning/datasources/datasources.yml
 # Datasources provisionados (ADR-007): Prometheus + Loki.
+# uid FIJO y explicito: el dashboard provisionado referencia los datasources
+# por uid ("prometheus"/"loki"); sin uid Grafana asigna uno aleatorio y los
+# paneles fallan con "Datasource prometheus was not found".
+# Nota: Grafana aplica el uid en el primer provisioning (instalacion limpia).
+# Si se actualiza una instalacion previa con uids auto-generados, hay que
+# eliminar la fila vieja (editable:false no permite DELETE por API): con
+# grafana detenido, borrar todas las filas de data_source en grafana.db y reinstalar.
 apiVersion: 1
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://127.0.0.1:9090
     isDefault: true
     editable: false
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://127.0.0.1:3100
