@@ -486,6 +486,11 @@ location = /obs {
 }
 
 location /obs/ {
+    # Grafana necesita scripts/estilos inline y eval: CSP propia para esta ruta
+    # (la CSP del SPA se define a nivel de server y se heredaria, bloqueando a Grafana).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
     proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -498,6 +503,9 @@ location /obs/ {
     proxy_read_timeout 3600s;
 }
 
+# /collect es un receptor Faro POST-only: responde JSON y no ejecuta recursos
+# (no sirve HTML ni scripts), asi que la CSP heredada del server no lo afecta.
+# No se define CSP propia aqui para no abrir la superficie innecesariamente.
 location /collect {
     proxy_pass http://127.0.0.1:12347;
     proxy_http_version 1.1;
