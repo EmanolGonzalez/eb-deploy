@@ -58,6 +58,9 @@ show_main_help() {
   echo -e "  \033[1;34msystem\033[0m     Setup, uninstall, servicios y audit log"
   echo "             setup | uninstall | services | rotate-pem | audit"
   echo
+  echo -e "  \033[1;34mobservability\033[0m  Stack de observabilidad (Grafana/Prometheus/Loki/Alloy)"
+  echo "             install | status | upgrade"
+  echo
   echo -e "  \033[1;34mrelease\033[0m    Build y empaquetado de componentes (dev)"
   echo "             build"
   echo
