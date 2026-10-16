@@ -744,7 +744,7 @@ server {
     # connect-src/frame-src incluyen login.microsoftonline.com (MSAL, login
     # y posible iframe de renovacion silenciosa) y graph.microsoft.com (foto
     # de perfil). img-src incluye los tiles de OpenStreetMap (Leaflet).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 
     # Permissions-Policy: la app SI usa camara (captura biometrica facial) y
     # geolocalizacion (mapas/confirmacion de entrega) -- NO bloquearlas.
@@ -779,6 +779,11 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         add_header X-Content-Type-Options nosniff always;
     }
+
+    # Observability (ADR-007): Grafana UI under /obs and the Alloy Faro
+    # collector under /collect. Snippet owned by the observability module
+    # ('deploy observability install'); comment-only until then.
+    include /etc/nginx/snippets/observability.conf;
 
     location / {
         try_files \$uri \$uri/ /index.html;
@@ -815,7 +820,7 @@ server {
     add_header X-Frame-Options              DENY                            always;
     add_header X-Content-Type-Options       nosniff                         always;
     add_header Referrer-Policy              "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-${csp_style_hash}'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' blob: https://login.microsoftonline.com https://graph.microsoft.com; frame-src blob: https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
     add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self)" always;
 
     # HTML/SPA: revalidar SIEMPRE para tomar el bundle nuevo tras un deploy.
@@ -844,6 +849,11 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         add_header X-Content-Type-Options nosniff always;
     }
+
+    # Observability (ADR-007): Grafana UI under /obs and the Alloy Faro
+    # collector under /collect. Snippet owned by the observability module
+    # ('deploy observability install'); comment-only until then.
+    include /etc/nginx/snippets/observability.conf;
 
     location / {
         try_files \$uri \$uri/ /index.html;
@@ -910,6 +920,14 @@ chown root:root /etc/nginx/ssl
 chmod 700 /etc/nginx/ssl
 
 ok "Directorios creados (incluye drop zone /app/artifacts/ssl y target /etc/nginx/ssl)."
+
+# Placeholder del snippet de observabilidad: el sitio lo incluye siempre; un
+# archivo solo-comentarios mantiene 'nginx -t' valido antes de
+# 'deploy observability install' (que lo reemplaza por los locations reales).
+mkdir -p /etc/nginx/snippets
+if [[ ! -f /etc/nginx/snippets/observability.conf ]]; then
+  printf '# Observabilidad (ADR-007): vacio hasta "deploy observability install".\n' > /etc/nginx/snippets/observability.conf
+fi
 
 # 4. Centralized config (UNICA fuente de secretos)
 setup_config

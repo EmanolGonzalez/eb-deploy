@@ -1,0 +1,44 @@
+{
+  "module": "observability",
+  "contract": "ADR-007 — observabilidad Grafana sobre instalacion nativa (host-direct)",
+  "retention": { "prometheus": "15d", "loki": "720h" },
+  "ports": {
+    "grafana": 3000,
+    "prometheus": 9090,
+    "loki": 3100,
+    "alloy_otlp_grpc": 4317,
+    "alloy_otlp_http": 4318,
+    "alloy_faro": 12347,
+    "alloy_ui": 12345
+  },
+  "components": {
+    "grafana": {
+      "version": "13.2.4",
+      "file": "grafana-13.2.4.linux-amd64.tar.gz",
+      "kind": "tar.gz",
+      "sha256": "c48765988fd88572607e4ea670251af8a8e64ab3e360d0f3cf67a6f3587b92ab",
+      "url": "https://dl.grafana.com/oss/release/grafana-13.2.4.linux-amd64.tar.gz"
+    },
+    "prometheus": {
+      "version": "3.15.0",
+      "file": "prometheus-3.15.0.linux-amd64.tar.gz",
+      "kind": "tar.gz",
+      "sha256": "2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0",
+      "url": "https://github.com/prometheus/prometheus/releases/download/v3.15.0/prometheus-3.15.0.linux-amd64.tar.gz"
+    },
+    "loki": {
+      "version": "3.7.8",
+      "file": "loki-linux-amd64.zip",
+      "kind": "zip",
+      "sha256": "62aea42c9cba52cd1642b3666ab37019a0ce4c24ab50b07e85dccc8d812f7d61",
+      "url": "https://github.com/grafana/loki/releases/download/v3.7.8/loki-linux-amd64.zip"
+    },
+    "alloy": {
+      "version": "1.20.1",
+      "file": "alloy-linux-amd64.zip",
+      "kind": "zip",
+      "sha256": "451fe650e8277d22d69cb8db50bba809f581fe78decba7fce4027ef185457be9",
+      "url": "https://github.com/grafana/alloy/releases/download/v1.20.1/alloy-linux-amd64.zip"
+    }
+  }
+}

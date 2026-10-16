@@ -67,6 +67,7 @@ while true; do
     "Database" \
     "Nginx" \
     "System" \
+    "Observability (Grafana/Prometheus/Loki/Alloy)" \
     "Release" \
     "Salir"
 
@@ -80,6 +81,7 @@ while true; do
     "Database")                           bash "$MODULES_DIR/database/menu.sh" || true ;;
     "Nginx")                              bash "$MODULES_DIR/nginx/menu.sh" || true ;;
     "System")                             bash "$MODULES_DIR/system/menu.sh" || true ;;
+    "Observability (Grafana/Prometheus/Loki/Alloy)") bash "$MODULES_DIR/observability/menu.sh" || true ;;
     "Release")                            bash "$MODULES_DIR/release/menu.sh" || true ;;
     "Salir")                              log "Bye."; exit 0 ;;
   esac
