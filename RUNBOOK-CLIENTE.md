@@ -193,7 +193,30 @@ sudo journalctl -u backend -f      # mirás la migración en vivo
 
 ---
 
-## 5. Troubleshooting rápido
+## 5. Respaldos de base de datos
+
+Los respaldos son dumps cifrados (AES-256) de MariaDB, guardados **en esta VM**
+(la de la app), no en la de la base de datos.
+
+- **Automático:** cada **3 días a las 03:00** (± 10 min), vía `backup.timer` /
+  `backup.service` (systemd). El timer lo instala `deploy system setup`; si faltara,
+  se instala solo al configurar los respaldos.
+- **Operador:** `sudo deploy menu` → **Database** →
+  **"Respaldos (configurar / ver los existentes)"** (o `sudo deploy database backup`):
+  - Si **no está configurado** → ofrece configurarlo: genera la clave de cifrado,
+    crea la carpeta y **instala el timer**. Pide confirmación y explica qué quedó.
+  - Si **ya está configurado** → **lista los respaldos** existentes (fecha y tamaño,
+    el más reciente primero) y muestra el estado de la programación.
+- **La clave de cifrado** (`Backup__EncryptionPassphrase`) es CRÍTICA: si se pierde,
+  los respaldos ya generados quedan ilegibles. Respaldala fuera del servidor.
+- **Retención:** 14 días (configurable en `Backup__RetentionDays`).
+- **Forzar un respaldo ahora:** `sudo systemctl start backup.service`.
+- **Verificar la programación:** `systemctl list-timers backup.timer` (NEXT/LAST) o
+  `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
+
+---
+
+## 6. Troubleshooting rápido
 
 | Síntoma | Causa / Fix |
 |---|---|

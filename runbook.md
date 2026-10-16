@@ -455,9 +455,14 @@ Crea o actualiza el virtual host Nginx para subdominio interno con certificado T
 Requiere **dos VMs separadas** (una para la BD, otra para la app) — este toolkit corre en la VM de la app y hace `mariadb-dump` **remoto** contra la BD via `ConnectionStrings__MariaDB`. El dump cifrado queda en `Backup__Dir` (default `/app/backups`) **en la VM de la app**, no en la de la BD — eso ya es un segundo medio real, no una copia en el mismo disco.
 
 - `deploy system setup` autogenera `Backup__EncryptionPassphrase` la primera vez (igual que `PiiEncryption__HashKeyBase64`) y la muestra una sola vez — **respaldala fuera del servidor**. Sin ella, los backups cifrados quedan ilegibles para siempre.
-- Corre automaticamente todos los dias a las 03:00 (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh`.
-- Manual: `deploy menu` → Database → "Correr backup ahora", o `bash modules/database/commands/backup.sh`.
+- Corre automaticamente **cada 3 dias a las 03:00** (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh` (unidades renderizadas desde `modules/database/lib/backup-schedule.sh`).
+  - Mecanismo: `OnCalendar=*-*-01/3 03:00:00` (dias 1, 4, 7, …) + `Persistent=true`. Se prefiere a `OnUnitActiveSec=3d` porque es hora fija de reloj (no se corre con cada ejecucion manual) y `Persistent=true` recupera la corrida si el server estaba apagado.
+- Operador: `deploy menu` → Database → **"Respaldos (configurar / ver los existentes)"** o `deploy database backup`:
+  - Si **no esta configurado** → ofrece configurarlo: asegura la passphrase (genera si falta; `deploy system setup` tambien lo hace), crea la carpeta `Backup__Dir` y **instala el timer** (pide confirmacion y explica en lenguaje simple).
+  - Si **ya esta configurado** → **lista los respaldos existentes** (fecha + tamano, mas reciente primero) y el estado de la programacion (proxima/ultima corrida).
 - Retencion local configurable en `Backup__RetentionDays` (default 14 dias) — borra automaticamente los `.sql.gz.enc` mas viejos.
+- Forzar un respaldo ahora: `systemctl start backup.service`.
+- Verificar la programacion: `systemctl list-timers backup.timer` (NEXT/LAST) o `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
 - Ver logs: `journalctl -u backup.service -n 50`.
 
 **Restaurar / descifrar un backup:**

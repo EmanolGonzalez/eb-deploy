@@ -18,8 +18,10 @@ while true; do
   #   - create: recrea la base si alguien la borro (EF migra al arrancar).
   #   - reset-schema: reset de emergencia (borra tablas, conserva la base).
   #   - set-developer: forma soportada de otorgar el nivel administrativo maximo.
+  #   - backup: si no esta configurado, lo configura (passphrase + timer cada
+  #     3 dias); si ya lo esta, LISTA los respaldos existentes.
   menu_select "Selecciona una accion:" \
-    "Backup (cifrado)" \
+    "Respaldos (configurar / ver los existentes)" \
     "Crear base de datos (si fue eliminada)" \
     "Verificar conexion a BD" \
     "Reset de esquema (borra tablas, conserva la base)" \
@@ -27,7 +29,7 @@ while true; do
     "Volver al menu principal"
 
   case "$MENU_SELECTION" in
-    "Backup (cifrado)")                                   bash "$MODULE_DIR/commands/backup.sh" ;;
+    "Respaldos (configurar / ver los existentes)")        bash "$MODULE_DIR/commands/backup.sh" ;;
     "Crear base de datos (si fue eliminada)")             bash "$MODULE_DIR/commands/create.sh" ;;
     "Verificar conexion a BD")                            bash "$MODULE_DIR/commands/check.sh" ;;
     "Reset de esquema (borra tablas, conserva la base)")  bash "$MODULE_DIR/commands/reset-schema.sh" ;;
