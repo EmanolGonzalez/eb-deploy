@@ -17,6 +17,16 @@
       "file": "rarlinux-x64-720.tar.gz"
     }
   },
+  "observability": {
+    "note": "Stack ADR-007 (Grafana/Prometheus/Loki/Alloy) como binarios nativos. assets/observability/ es gitignored (binarios grandes); se pobla con scripts/fetch-observability-assets.sh en una maquina con Internet. El manifiesto autoritativo del modulo esta en modules/observability/manifest.json.",
+    "assets_dir": "assets/observability/",
+    "components": {
+      "grafana":    { "version": "13.2.4", "sha256": "c48765988fd88572607e4ea670251af8a8e64ab3e360d0f3cf67a6f3587b92ab" },
+      "prometheus": { "version": "3.15.0", "sha256": "2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0" },
+      "loki":       { "version": "3.7.8",  "sha256": "62aea42c9cba52cd1642b3666ab37019a0ce4c24ab50b07e85dccc8d812f7d61" },
+      "alloy":      { "version": "1.20.1", "sha256": "451fe650e8277d22d69cb8db50bba809f581fe78decba7fce4027ef185457be9" }
+    }
+  },
   "database": {
     "mariadb-client": {
       "note": "Se descargan automaticamente al ejecutar setup/bootstrap.sh",
