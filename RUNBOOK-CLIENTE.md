@@ -207,7 +207,7 @@ Los respaldos son dumps cifrados (AES-256) de MariaDB, guardados **en esta VM**
 - **Automático:** cada **3 días a las 03:00** (± 10 min), vía `backup.timer` /
   `backup.service` (systemd). El timer lo instala `deploy system setup`; si faltara,
   se instala solo al configurar los respaldos.
-- **Operador:** `sudo deploy menu` → **Database** →
+- **Operador:** `sudo deploy menu` → **Respaldos** →
   **"Respaldos (configurar / ver los existentes)"** (o `sudo deploy database backup`):
   - Si **no está configurado** → ofrece configurarlo: genera la clave de cifrado,
     crea la carpeta y **instala el timer**. Pide confirmación y explica qué quedó.
@@ -219,6 +219,26 @@ Los respaldos son dumps cifrados (AES-256) de MariaDB, guardados **en esta VM**
 - **Forzar un respaldo ahora:** `sudo systemctl start backup.service`.
 - **Verificar la programación:** `systemctl list-timers backup.timer` (NEXT/LAST) o
   `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
+
+### Restaurar un respaldo (recuperación)
+
+`sudo deploy menu` → **Respaldos** → **"Restaurar un respaldo"**
+(o `sudo deploy database restore`):
+
+```bash
+sudo deploy database restore                 # lista y deja elegir por número
+sudo deploy database restore --last           # el respaldo más reciente
+sudo deploy database restore --file <ruta>    # un archivo específico
+sudo deploy database restore --last --yes      # automatización (sin confirmación)
+```
+
+- **Antes de tocar la base** guarda un respaldo de seguridad del estado ACTUAL
+  (`pre-restore-<base>-<fecha>.sql.gz.enc`). Si ese paso falla, **aborta**.
+- Pide **confirmación explícita**: hay que escribir `RESTAURAR` (sin terminal y sin
+  `--yes` se rechaza; usa `--yes` sólo en automatización).
+- Al terminar sugiere `sudo deploy health simple` para confirmar que la app quedó sana.
+- Si el descifrado falla (clave incorrecta/archivo corrupto), la base **no** se
+  modifica. Si la carga falla a mitad, avisa y deja el `pre-restore` para volver.
 
 ---
 

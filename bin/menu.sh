@@ -111,8 +111,22 @@ menu_category_estado() {
   done
 }
 
-# 2) Respaldos (accion directa)
-menu_respaldos() { run_cmd database backup; pause_menu; }
+# 2) Respaldos
+menu_category_respaldos() {
+  while true; do
+    echo; divider; echo "  Respaldos"; dev_mode_banner; divider
+    menu_select "Selecciona una accion:" \
+      "Respaldos (configurar / ver los existentes)" \
+      "Restaurar un respaldo" \
+      "Volver al menu principal"
+    case "$MENU_SELECTION" in
+      "Respaldos (configurar / ver los existentes)") run_cmd database backup ;;
+      "Restaurar un respaldo")                        run_cmd database restore ;;
+      *) return 0 ;;
+    esac
+    pause_menu
+  done
+}
 
 # 3) Actualizar la aplicacion (cada componente abre su menu de acciones)
 menu_category_actualizar() {
@@ -222,7 +236,7 @@ while true; do
 
   case "$MENU_SELECTION" in
     "¿Cómo está el sistema?")       menu_category_estado ;;
-    "Respaldos")                    menu_respaldos ;;
+    "Respaldos")                    menu_category_respaldos ;;
     "Actualizar la aplicación")     menu_category_actualizar ;;
     "Base de datos")                menu_category_database ;;
     "Configuración y seguridad")    menu_category_config ;;

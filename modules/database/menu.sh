@@ -20,8 +20,10 @@ while true; do
   #   - set-developer: forma soportada de otorgar el nivel administrativo maximo.
   #   - backup: si no esta configurado, lo configura (passphrase + timer cada
   #     3 dias); si ya lo esta, LISTA los respaldos existentes.
+  #   - restore: restaura un respaldo (toma un pre-restore del estado actual).
   menu_select "Selecciona una accion:" \
     "Respaldos (configurar / ver los existentes)" \
+    "Restaurar un respaldo" \
     "Crear base de datos (si fue eliminada)" \
     "Verificar conexion a BD" \
     "Reset de esquema (borra tablas, conserva la base)" \
@@ -30,6 +32,7 @@ while true; do
 
   case "$MENU_SELECTION" in
     "Respaldos (configurar / ver los existentes)")        bash "$MODULE_DIR/commands/backup.sh" ;;
+    "Restaurar un respaldo")                              bash "$MODULE_DIR/commands/restore.sh" ;;
     "Crear base de datos (si fue eliminada)")             bash "$MODULE_DIR/commands/create.sh" ;;
     "Verificar conexion a BD")                            bash "$MODULE_DIR/commands/check.sh" ;;
     "Reset de esquema (borra tablas, conserva la base)")  bash "$MODULE_DIR/commands/reset-schema.sh" ;;

@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$MODULE_DIR/lib/db-common.sh"
 source "$MODULE_DIR/lib/backup-schedule.sh"
+source "$MODULE_DIR/lib/backup-db.sh"
 
 NON_INTERACTIVE=0
 while [[ $# -gt 0 ]]; do
@@ -45,72 +46,40 @@ run_backup() {
     return 1
   fi
 
-  local backup_dir="${Backup__Dir:-/app/backups}"
-  local retention_days="${Backup__RetentionDays:-14}"
+  local backup_dir
+  backup_dir="$(backup_dir_path)"
+  local retention_days
+  retention_days="$(backup_retention_days)"
 
   mkdir -p "$backup_dir"
   chmod 700 "$backup_dir"
 
-  local cs="$ConnectionStrings__MariaDB"
-  local server database user pass port
-  server="$(echo "$cs"   | sed -nE 's/.*[Ss]erver=([^;]+).*/\1/p')"
-  database="$(echo "$cs" | sed -nE 's/.*[Dd]atabase=([^;]+).*/\1/p')"
-  user="$(echo "$cs"     | sed -nE 's/.*[Uu]ser=([^;]+).*/\1/p')"
-  pass="$(echo "$cs"     | sed -nE 's/.*[Pp]assword=([^;]+).*/\1/p')"
-  port="$(echo "$cs"     | sed -nE 's/.*[Pp]ort=([^;]+).*/\1/p')"
-  port="${port:-3306}"
-
-  if [[ -z "$server" || -z "$database" || -z "$user" ]]; then
+  if ! db_parse_mariadb_connection "$ConnectionStrings__MariaDB"; then
     err "No se pudo parsear ConnectionStrings__MariaDB (server/database/user vacios)."
     return 1
   fi
 
-  local client=""
-  command -v mariadb-dump &>/dev/null && client="mariadb-dump"
-  [[ -z "$client" ]] && command -v mysqldump &>/dev/null && client="mysqldump"
-  if [[ -z "$client" ]]; then
+  local dump_client
+  dump_client="$(db_dump_client)"
+  if [[ -z "$dump_client" ]]; then
     err "mariadb-dump/mysqldump no disponible. Instalar mariadb-client."
     return 1
   fi
 
-  local stamp
+  local stamp enc_file
   stamp="$(date '+%Y%m%d-%H%M%S')"
-  local raw_file="$backup_dir/${database}-${stamp}.sql.gz"
-  local enc_file="${raw_file}.enc"
+  enc_file="$backup_dir/${DB_DATABASE}-${stamp}.sql.gz.enc"
 
-  log "Iniciando backup de '$database' desde $server:$port (via $client)..."
+  log "Iniciando backup de '$DB_DATABASE' desde $DB_SERVER:$DB_PORT (via $dump_client)..."
 
-  if ! "$client" -h "$server" -P "$port" -u"$user" -p"$pass" --ssl-verify-server-cert=0 \
-        --single-transaction --quick --routines --triggers --events \
-        "$database" | gzip > "$raw_file"; then
-    err "mariadb-dump fallo. Descartando archivo parcial."
-    rm -f "$raw_file"
-    return 1
-  fi
-
-  if [[ ! -s "$raw_file" ]]; then
-    err "El dump quedo vacio. Abortando."
-    rm -f "$raw_file"
-    return 1
-  fi
-
-  if ! openssl enc -aes-256-cbc -pbkdf2 -salt \
-        -pass "pass:${Backup__EncryptionPassphrase}" \
-        -in "$raw_file" -out "$enc_file"; then
-    err "Cifrado del backup fallo."
-    rm -f "$raw_file" "$enc_file"
-    return 1
-  fi
-
-  rm -f "$raw_file"
-  chmod 600 "$enc_file"
+  db_create_encrypted_backup "$enc_file" || return 1
   ok "Backup cifrado: $enc_file ($(du -h "$enc_file" | cut -f1))"
 
   local deleted=0
   while IFS= read -r -d '' old; do
     rm -f "$old"
     (( deleted += 1 ))
-  done < <(find "$backup_dir" -maxdepth 1 -name "${database}-*.sql.gz.enc" -mtime "+${retention_days}" -print0 2>/dev/null)
+  done < <(find "$backup_dir" -maxdepth 1 -name "${DB_DATABASE}-*.sql.gz.enc" -mtime "+${retention_days}" -print0 2>/dev/null)
 
   if [[ "$deleted" -gt 0 ]]; then
     log "Retencion ($retention_days dias): $deleted backup(s) viejo(s) eliminados."

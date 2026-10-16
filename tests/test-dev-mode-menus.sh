@@ -60,9 +60,10 @@ echo "Curation de menus por developer mode"
 
 # ── Database: NO dev gating (todas las acciones son del operador) ────────────
 DB="$ROOT/modules/database/menu.sh"
-off="$(run_menu "$DB" 6)"
-on="$(run_menu "$DB" 6 1)"
+off="$(run_menu "$DB" 7)"
+on="$(run_menu "$DB" 7 1)"
 check_contains   "database OFF: muestra respaldos"            "$off" "Respaldos (configurar / ver los existentes)"
+check_contains   "database OFF: muestra restaurar"           "$off" "Restaurar un respaldo"
 check_contains   "database OFF: muestra create"             "$off" "Crear base de datos (si fue eliminada)"
 check_contains   "database OFF: muestra check"              "$off" "Verificar conexion a BD"
 check_contains   "database OFF: muestra reset-schema"       "$off" "Reset de esquema"
@@ -121,7 +122,7 @@ for spec in "nginx/configure-letsencrypt" "system/uninstall" "release/build"; do
 done
 
 # Comandos del operador (NO gateados): siempre presentes.
-for spec in "database/backup" "database/create" "database/check" \
+for spec in "database/backup" "database/restore" "database/create" "database/check" \
             "database/reset-schema" "database/set-developer"; do
   if [[ -f "$ROOT/modules/${spec%/*}/commands/${spec#*/}.sh" ]]; then
     printf '  ok    comando operador presente: %s\n' "$spec"; PASS=$((PASS + 1))
@@ -132,6 +133,7 @@ done
 
 help_out="$(bash "$ROOT/bin/deploy" database --help 2>&1)"
 check_contains   "deploy database --help lista create"        "$help_out" "create"
+check_contains   "deploy database --help lista restore"       "$help_out" "restore"
 check_contains   "deploy database --help lista reset-schema"  "$help_out" "reset-schema"
 check_contains   "deploy database --help lista set-developer" "$help_out" "set-developer"
 check_absent     "deploy database --help NO lista run-schema" "$help_out" "run-schema"

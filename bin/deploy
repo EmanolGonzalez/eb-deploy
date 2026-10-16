@@ -51,7 +51,7 @@ show_main_help() {
   echo "  El menu principal agrupa las tareas en categorias:"
   echo
   echo "  1) ¿Cómo está el sistema?   estado (un toque) · diagnóstico · historial de deploys"
-  echo "  2) Respaldos                configurar / ver los existentes"
+  echo "  2) Respaldos                configurar / ver los existentes · restaurar un respaldo"
   echo "  3) Actualizar la aplicación Backend · Frontend · Observabilidad"
   echo "  4) Base de datos            crear · verificar · reset de esquema · rol Developer"
   echo "  5) Configuración y seguridad HTTPS interno · nginx · llaves · servicios · config.env"
@@ -69,8 +69,8 @@ show_main_help() {
   echo -e "  \033[1;34mhealth\033[0m     App Health: salud y estado de la aplicacion"
   echo "             (sin accion) estado simple | check | status | set-endpoint | full"
   echo
-  echo -e "  \033[1;34mdatabase\033[0m   Conexion, base de datos y datos de prueba de BD"
-  echo "             backup | create | check | reset-schema | set-developer"
+  echo -e "  \033[1;34mdatabase\033[0m   Conexion, base de datos y respaldos"
+  echo "             backup | restore | create | check | reset-schema | set-developer"
   echo
   echo -e "  \033[1;34mnginx\033[0m      Configuracion de Nginx"
   echo "             configure-https | reload"

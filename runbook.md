@@ -471,7 +471,43 @@ Requiere **dos VMs separadas** (una para la BD, otra para la app) — este toolk
 - Verificar la programacion: `systemctl list-timers backup.timer` (NEXT/LAST) o `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
 - Ver logs: `journalctl -u backup.service -n 50`.
 
-**Restaurar / descifrar un backup:**
+### Restaurar un respaldo (recuperacion)
+
+**Operador:** `deploy menu` → **Respaldos** → **"Restaurar un respaldo"**, o
+`deploy database restore`.
+
+```bash
+sudo deploy database restore                 # lista y deja elegir por numero
+sudo deploy database restore --last           # el respaldo regular mas reciente
+sudo deploy database restore --file <ruta>    # un archivo especifico
+sudo deploy database restore --last --yes      # automatizacion (sin prompt)
+```
+
+Flujo:
+
+1. **Lista** los respaldos de la base actual (fecha + tamano, mas reciente primero)
+   — incluye los `pre-restore-*`. Sin seleccion, muestra la lista y sale.
+2. El operador elige uno por numero (o `--last` / `--file`).
+3. **Confirmacion explicita**: muestra una advertencia de que se REEMPLAZA el
+   contenido actual y pide escribir `RESTAURAR`. Sin terminal y sin `--yes` se
+   **rechaza** (no hay forma de confirmar a ciegas).
+4. **Respaldo pre-restore obligatorio**: antes de tocar la base, guarda el estado
+   ACTUAL en `pre-restore-${DB}-<timestamp>.sql.gz.enc` (mismo `Backup__Dir`). Si
+   este paso falla, **se aborta** la restauracion.
+5. **Restaura**: descifra (AES-256) → gunzip → carga en `${DB}` via
+   `ConnectionStrings__MariaDB` (cliente directo o docker), igual que `backup.sh`.
+6. **Verifica**: sugiere `deploy health simple` y reporta la ruta del pre-restore.
+
+Fallos:
+
+- Passphrase ausente/`CHANGE_ME` o cadena de conexion invalida → aborta con mensaje
+  claro, sin tocar la base.
+- Descifrado fallido (passphrase incorrecta / archivo corrupto) → la base **NO** se
+  modifica.
+- Carga fallida a mitad → avisa que la base puede quedar incompleta y reporta el
+  `pre-restore`; para volver: `deploy database restore --file <pre-restore> --yes`.
+
+**Restaurar manualmente (sin el toolkit):**
 
 ```bash
 openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:<Backup__EncryptionPassphrase>" \
