@@ -23,10 +23,10 @@
 ## 1. Secuencia de deploy (orden exacto)
 
 > El menú del cliente (`sudo deploy menu`) sólo muestra las acciones de
-> operación. Las acciones de desarrollo/riesgo (`set-developer`, `run-schema`,
-> `reset-schema`, `configure-letsencrypt`, `Release`, `uninstall`) están ocultas
-> y se habilitan sólo con `DEPLOY_DEV_MODE=1`. Los comandos directos siguen
-> funcionando cuando se invocan a mano.
+> operación. Las acciones de desarrollo/riesgo (`configure-letsencrypt`,
+> `Release`, `uninstall`) están ocultas y se habilitan sólo con
+> `DEPLOY_DEV_MODE=1`. Los comandos directos siguen funcionando cuando se
+> invocan a mano. El módulo **Database** NO tiene acciones ocultas.
 
 ```bash
 # 1) Copiar por FTP la carpeta bs_deploy completa a  /app/deploy
@@ -41,9 +41,10 @@ sudo bash /app/deploy/setup/setup-server.sh
 sudo deploy nginx configure-https
 #    - Dejá el par cert+key en /app/artifacts/ssl/  (o los pide interactivo)
 
-# 4) Base de datos: dejar VACÍA para que EF migre de cero
-sudo deploy database reset-schema     # SOLO si la BD tiene esquema viejo/roto
-#    NO uses 'run-schema' — EF (auto-migrate) es la ÚNICA fuente de verdad.
+# 4) Base de datos: EF migra el esquema al arrancar el backend.
+sudo deploy database create           # SOLO si borraron la base (la crea vacía)
+sudo deploy database reset-schema     # SOLO si el esquema viejo/roto: borra tablas, conserva la base
+#    El comando 'run-schema' YA NO EXISTE — EF (auto-migrate) es la ÚNICA fuente de verdad.
 
 # 5) Copiar por FTP los artefactos a /app/artifacts/
 #      frontend -> /app/artifacts/frontend.rar
@@ -188,7 +189,7 @@ sudo journalctl -u backend -f      # mirás la migración en vivo
 
 - Un arranque **único y controlado** (desde detenido) evita la carrera de `Restart=always`.
 - **BD vacía + `InitialCreate` único** → EF crea todo de cero, limpio.
-- **NO mezclar** `run-schema` con auto-migrate: elegí una sola fuente de verdad (EF).
+- La base la crea EF si no existe; si alguien la borró del servidor, `deploy database create` la recrea vacía. NO hay comando de esquema manual: EF es la única fuente de verdad.
 
 ---
 
@@ -197,7 +198,7 @@ sudo journalctl -u backend -f      # mirás la migración en vivo
 | Síntoma | Causa / Fix |
 |---|---|
 | `apt: Unmet dependencies` / dpkg roto | Falta un `.deb` en `assets`. Reenviá `assets/system/` completo por FTP. Offline no hay `apt -f install`. |
-| Backend crash-loop, `Duplicate column` | Esquema desincronizado con migraciones. `reset-schema` (BD vacía) + reinstalar backend. No usar `run-schema`. |
+| Backend crash-loop, `Duplicate column` | Esquema desincronizado con migraciones. `reset-schema` (borra tablas, conserva la base) + reinstalar backend; EF reconstruye el esquema. |
 | `AADSTS50011 redirect_uri mismatch` | La URI no está registrada en Entra, o el `.env` tiene doble esquema. Registrar en Entra como **SPA** y rebuildear el front con la URI correcta. |
 | `/api/health` devuelve HTML | nginx no matchea `/api`. Re-aplicar: `sudo deploy nginx reload` / re-correr setup. |
 | Backend no arranca, `config.env` con CHANGE_ME | Completar `config.env` (`deploy system edit-config`) y reiniciar. |

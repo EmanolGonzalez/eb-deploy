@@ -26,6 +26,14 @@ fi
 
 source "$BASE_DIR/core/logger.sh"
 
+# ── REMOVED ACTIONS ───────────────────────────────────────────────────────────
+# Commands the toolkit no longer supports. Kept out of the per-module help even
+# if a stale command file remains in the tree (e.g. run-schema, pending its
+# deletion). Space-separated, matched as whole words.
+removed_commands() {
+  echo "run-schema"
+}
+
 # ── HELP ──────────────────────────────────────────────────────────────────────
 
 show_main_help() {
@@ -49,9 +57,8 @@ show_main_help() {
   echo -e "  \033[1;34mhealth\033[0m     App Health: salud y estado de la aplicacion"
   echo "             (sin accion) estado simple | check | status | set-endpoint | full"
   echo
-  echo -e "  \033[1;34mdatabase\033[0m   Conexion, esquema y datos de prueba de BD"
-  echo "             check | backup"
-  echo "             (dev) set-developer | run-schema | reset-schema"
+  echo -e "  \033[1;34mdatabase\033[0m   Conexion, base de datos y datos de prueba de BD"
+  echo "             backup | create | check | reset-schema | set-developer"
   echo
   echo -e "  \033[1;34mnginx\033[0m      Configuracion de Nginx"
   echo "             configure-https | reload"
@@ -71,8 +78,8 @@ show_main_help() {
   echo "  Los comandos marcados con (dev) NO se listan en los menus."
   echo "  Para mostrarlos (solo desarrollo/CI):"
   echo "    DEPLOY_DEV_MODE=1 deploy menu"
-  echo "  Los comandos directos (deploy database run-schema, deploy system uninstall,"
-  echo "  deploy nginx configure-letsencrypt, deploy release build) siguen funcionando."
+  echo "  Los comandos directos (deploy nginx configure-letsencrypt,"
+  echo "  deploy system uninstall, deploy release build) siguen funcionando."
   echo
   echo -e "\033[1mEjemplos:\033[0m"
   echo "  deploy backend install          # Instalar backend desde /app/artifacts/backend.rar"
@@ -80,6 +87,7 @@ show_main_help() {
   echo "  deploy backend rollback         # Volver a la version anterior"
   echo "  deploy health                   # Estado simple del sistema (recomendado)"
   echo "  deploy health status            # Diagnostico tecnico completo"
+  echo "  deploy database create          # Crear la base de datos (si fue eliminada)"
   echo "  deploy database check           # Probar conexion a BD"
   echo "  deploy nginx reload             # Recargar Nginx"
   echo "  deploy system audit             # Ver log de despliegues"
@@ -112,6 +120,10 @@ show_module_help() {
     for cmd in "$cmd_dir"/*.sh; do
       local name
       name="$(basename "$cmd" .sh)"
+      # Acciones removidas del toolkit: se ocultan del help aunque quede un
+      # archivo obsoleto en el arbol (p.ej. run-schema, a la espera de su
+      # eliminacion definitiva).
+      [[ " $(removed_commands) " == *" $name "* ]] && continue
       # Try to extract description from first comment line
       local desc
       desc="$(head -3 "$cmd" | grep -E '^#' | grep -v '^#!/' | grep -v '^# ===' | sed 's/^#[[:space:]]*//' | head -1 || true)"

@@ -94,7 +94,7 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 | `ops-menu.sh` | Consola de operaciones — entrypoint del sistema en el servidor |
 | `setup/setup-server.sh` | Aprovisionamiento inicial: instala dependencias, crea config.env |
 | `install.sh` | Instala un componente desde un archivo app.rar local |
-| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck | set-developer | run-schema | reset-schemafalla |
+| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck falla |
 | `rollback.sh` | Restaura un componente a una version instalada localmente |
 | `release.sh` | Construye y empaqueta un componente en app.rar (se ejecuta desde dev) |
 | `healthcheck.sh` | Valida que backend/frontend esten operativos |
@@ -305,21 +305,26 @@ bash /app/deploy/bin/deploy menu
 El menu modular tiene submenus por dominio:
 - **Backend / Frontend** — install, update, rollback
 - **App Health** — estado simple (recomendado) + diagnostico tecnico (full, check, status, set-endpoint)
-- **Database** — check, backup
+- **Database** — backup, create, check, reset-schema, set-developer (sin gating: todas del operador)
 - **Nginx** — configure-https, reload
 - **System** — setup, edit-config, services, rotate-pem, rotate-pii, audit, lint
 - **Release** — build
 
-**Modo desarrollador:** las acciones de desarrollo/riesgo (`set-developer`,
-`run-schema`, `reset-schema`, `configure-letsencrypt`, `Release`, `uninstall`)
-NO se listan en los menus del cliente. Para mostrarlas (solo desarrollo/CI):
+**Base de datos:** el esquema lo aplica EF automaticamente al arrancar. El comando
+`run-schema` fue **removido**. Si falta la base entera: `deploy database create`
+(la crea vacia). Si el esquema quedo roto: `deploy database reset-schema` (borra
+las tablas, conserva la base) y EF reconstruye al arrancar.
+
+**Modo desarrollador:** las acciones de desarrollo/riesgo (`configure-letsencrypt`,
+`Release`, `uninstall`) NO se listan en los menus del cliente. Para mostrarlas
+(solo desarrollo/CI):
 
 ```bash
 DEPLOY_DEV_MODE=1 bash /app/deploy/bin/deploy menu
 ```
 
-Los comandos siguen funcionando al invocarlos directo (`deploy database
-run-schema`, `deploy system uninstall`, `deploy release build`, ...).
+Los comandos siguen funcionando al invocarlos directo (`deploy nginx
+configure-letsencrypt`, `deploy system uninstall`, `deploy release build`, ...).
 
 ### CLI directa
 

@@ -47,22 +47,32 @@ check_absent() { # <name> <haystack> <needle>
   fi
 }
 
+check_equal() { # <name> <expected> <actual>
+  local name="$1" expected="$2" actual="$3"
+  if [[ "$expected" == "$actual" ]]; then
+    printf '  ok    %s\n' "$name"; PASS=$((PASS + 1))
+  else
+    printf '  FAIL  %s\n        esperado identico:\n%s\n        obtenido:\n%s\n' "$name" "$expected" "$actual"; FAIL=$((FAIL + 1))
+  fi
+}
+
 echo "Curation de menus por developer mode"
 
-# ── Database ─────────────────────────────────────────────────────────────────
+# ── Database: NO dev gating (todas las acciones son del operador) ────────────
 DB="$ROOT/modules/database/menu.sh"
-off="$(run_menu "$DB" 3)"
-on="$(run_menu "$DB" 7 1)"
-check_absent     "database OFF: oculta set-developer"    "$off" "Asignar rol Developer"
-check_absent     "database OFF: oculta run-schema"       "$off" "Ejecutar esquema de la base de datos"
-check_absent     "database OFF: oculta reset-schema"     "$off" "Resetear esquema"
-check_contains   "database OFF: mantiene check"          "$off" "Verificar conexion a BD"
-check_contains   "database OFF: mantiene backup"         "$off" "Correr backup ahora"
-check_contains   "database ON: muestra set-developer"    "$on"  "Asignar rol Developer"
-check_contains   "database ON: muestra run-schema"       "$on"  "Ejecutar esquema de la base de datos"
-check_contains   "database ON: muestra reset-schema"     "$on"  "Resetear esquema"
-check_contains   "database ON: banner dev"               "$on"  "MODO DESARROLLADOR ACTIVO"
-check_absent     "database OFF: sin banner dev"          "$off" "MODO DESARROLLADOR ACTIVO"
+off="$(run_menu "$DB" 6)"
+on="$(run_menu "$DB" 6 1)"
+check_contains   "database OFF: muestra backup"             "$off" "Backup (cifrado)"
+check_contains   "database OFF: muestra create"             "$off" "Crear base de datos (si fue eliminada)"
+check_contains   "database OFF: muestra check"              "$off" "Verificar conexion a BD"
+check_contains   "database OFF: muestra reset-schema"       "$off" "Reset de esquema"
+check_contains   "database OFF: muestra set-developer"      "$off" "Asignar rol Developer"
+check_contains   "database ON:  muestra create"             "$on"  "Crear base de datos (si fue eliminada)"
+check_contains   "database ON:  muestra reset-schema"       "$on"  "Reset de esquema"
+check_contains   "database ON:  muestra set-developer"      "$on"  "Asignar rol Developer"
+check_absent     "database: run-schema ya no esta en el menu" "$off" "Ejecutar esquema"
+check_absent     "database ON: sin banner dev (sin gating)" "$on"  "MODO DESARROLLADOR ACTIVO"
+check_equal      "database OFF == ON (sin gating dev)"      "$off" "$on"
 
 # ── System ───────────────────────────────────────────────────────────────────
 SYS="$ROOT/modules/system/menu.sh"
@@ -96,17 +106,29 @@ check_contains   "main ON: banner dev"                   "$on"  "MODO DESARROLLA
 
 # ── Hidden commands stay reachable directly ──────────────────────────────────
 # (routing/docs reachability; live invocation is part of the VM rehearsal)
-for spec in "database/set-developer" "database/run-schema" "database/reset-schema" \
-            "nginx/configure-letsencrypt" "system/uninstall" "release/build"; do
+for spec in "nginx/configure-letsencrypt" "system/uninstall" "release/build"; do
   if [[ -f "$ROOT/modules/${spec%/*}/commands/${spec#*/}.sh" ]]; then
-    printf '  ok    comando directo presente: %s\n' "$spec"; PASS=$((PASS + 1))
+    printf '  ok    comando dev-gated presente: %s\n' "$spec"; PASS=$((PASS + 1))
   else
-    printf '  FAIL  comando directo ausente: %s\n' "$spec"; FAIL=$((FAIL + 1))
+    printf '  FAIL  comando dev-gated ausente: %s\n' "$spec"; FAIL=$((FAIL + 1))
   fi
 done
+
+# Comandos del operador (NO gateados): siempre presentes.
+for spec in "database/backup" "database/create" "database/check" \
+            "database/reset-schema" "database/set-developer"; do
+  if [[ -f "$ROOT/modules/${spec%/*}/commands/${spec#*/}.sh" ]]; then
+    printf '  ok    comando operador presente: %s\n' "$spec"; PASS=$((PASS + 1))
+  else
+    printf '  FAIL  comando operador ausente: %s\n' "$spec"; FAIL=$((FAIL + 1))
+  fi
+done
+
 help_out="$(bash "$ROOT/bin/deploy" database --help 2>&1)"
-check_contains   "deploy database --help lista run-schema" "$help_out" "run-schema"
-check_contains   "deploy database --help lista reset-schema" "$help_out" "reset-schema"
+check_contains   "deploy database --help lista create"        "$help_out" "create"
+check_contains   "deploy database --help lista reset-schema"  "$help_out" "reset-schema"
+check_contains   "deploy database --help lista set-developer" "$help_out" "set-developer"
+check_absent     "deploy database --help NO lista run-schema" "$help_out" "run-schema"
 
 echo
 printf 'ok: %d   fallos: %d\n' "$PASS" "$FAIL"

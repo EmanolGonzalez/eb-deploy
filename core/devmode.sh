@@ -5,12 +5,14 @@
 # Signal (the ONE supported by this toolkit): the environment variable
 #   DEPLOY_DEV_MODE=1
 # When it is set, the menus ALSO show the development/risky actions
-# (set-developer, run-schema, reset-schema, configure-letsencrypt, Release,
-# uninstall). When it is NOT set, those entries are hidden from the menus.
+# (configure-letsencrypt, Release, uninstall). When it is NOT set, those
+# entries are hidden from the menus. The database module has NO gated entries:
+# create/reset-schema/set-developer are supported operator actions.
 #
 # Hiding is a MENU-only concern: the underlying commands keep working when
-# invoked directly (`deploy database run-schema`, `deploy system uninstall`,
-# ...), because automation, tests and the release rehearsal depend on them.
+# invoked directly (`deploy nginx configure-letsencrypt`, `deploy system
+# uninstall`, ...), because automation, tests and the release rehearsal depend
+# on them.
 #
 # Usage:
 #   DEPLOY_DEV_MODE=1 deploy menu
