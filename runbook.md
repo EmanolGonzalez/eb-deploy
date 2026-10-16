@@ -302,22 +302,28 @@ O via CLI:
 bash /app/deploy/bin/deploy menu
 ```
 
-El menu modular tiene submenus por dominio:
-- **Backend / Frontend** — install, update, rollback
-- **App Health** — estado simple (recomendado) + diagnostico tecnico (full, check, status, set-endpoint)
-- **Database** — backup, create, check, reset-schema, set-developer (sin gating: todas del operador)
-- **Nginx** — configure-https, reload
-- **System** — setup, edit-config, services, rotate-pem, rotate-pii, audit, lint
-- **Release** — build
+El menu principal agrupa las tareas por **categoría** ("¿qué querés hacer?"):
+
+1. **¿Cómo está el sistema?** — estado (un toque) · diagnóstico completo · historial de deploys (auditoría)
+2. **Respaldos** — configurar / ver los existentes
+3. **Actualizar la aplicación** — Backend · Frontend · Observabilidad
+4. **Base de datos** — crear base · verificar conexión · reset de esquema · asignar rol Developer
+5. **Configuración y seguridad** — editar config.env · HTTPS interno · recargar nginx · rotar llave RSA · rotar Hash Key PII · gestionar servicios
+6. **🔧 Avanzado** (solo con `DEPLOY_DEV_MODE=1`) — Let's Encrypt · release (build) · desinstalar
+
+Las categorías son una **vista**: cada opción despacha al mismo comando de la CLI
+(`deploy <modulo> <accion>`), así que la automatización y los runbooks no cambian.
+Los menús por módulo siguen disponibles: `deploy <modulo>` (sin acción) abre el
+menú de ese módulo.
 
 **Base de datos:** el esquema lo aplica EF automaticamente al arrancar. El comando
 `run-schema` fue **removido**. Si falta la base entera: `deploy database create`
 (la crea vacia). Si el esquema quedo roto: `deploy database reset-schema` (borra
 las tablas, conserva la base) y EF reconstruye al arrancar.
 
-**Modo desarrollador:** las acciones de desarrollo/riesgo (`configure-letsencrypt`,
-`Release`, `uninstall`) NO se listan en los menus del cliente. Para mostrarlas
-(solo desarrollo/CI):
+**Modo desarrollador:** la categoría **6) Avanzado** (Let's Encrypt, release,
+desinstalar) NO se lista en el menu del cliente. Para mostrarla (solo
+desarrollo/CI):
 
 ```bash
 DEPLOY_DEV_MODE=1 bash /app/deploy/bin/deploy menu

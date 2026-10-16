@@ -22,11 +22,17 @@
 
 ## 1. Secuencia de deploy (orden exacto)
 
-> El menú del cliente (`sudo deploy menu`) sólo muestra las acciones de
-> operación. Las acciones de desarrollo/riesgo (`configure-letsencrypt`,
-> `Release`, `uninstall`) están ocultas y se habilitan sólo con
-> `DEPLOY_DEV_MODE=1`. Los comandos directos siguen funcionando cuando se
-> invocan a mano. El módulo **Database** NO tiene acciones ocultas.
+> El menú del cliente (`sudo deploy menu`) agrupa el trabajo por **categoría**
+> (¿qué querés hacer?): **1) ¿Cómo está el sistema?** · **2) Respaldos** ·
+> **3) Actualizar la aplicación** · **4) Base de datos** ·
+> **5) Configuración y seguridad**. Cada opción despacha al mismo comando de la
+> CLI (`sudo deploy <módulo> <acción>`), así que no cambia nada para la
+> automatización.
+>
+> La categoría **6) Avanzado** (`configure-letsencrypt`, `release`, `uninstall`)
+> está oculta y se habilita sólo con `DEPLOY_DEV_MODE=1`. Los comandos directos
+> siguen funcionando cuando se invocan a mano. El módulo **Database** NO tiene
+> acciones ocultas.
 
 ```bash
 # 1) Copiar por FTP la carpeta bs_deploy completa a  /app/deploy

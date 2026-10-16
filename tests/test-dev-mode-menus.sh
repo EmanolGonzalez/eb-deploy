@@ -94,15 +94,21 @@ check_contains   "nginx OFF: mantiene reload"            "$off" "Reload Nginx"
 check_contains   "nginx ON: muestra letsencrypt"         "$on"  "Let's Encrypt"
 check_contains   "nginx ON: banner dev"                  "$on"  "MODO DESARROLLADOR ACTIVO"
 
-# ── Main menu: Release entry ─────────────────────────────────────────────────
+# ── Main menu: categorias por tarea ──────────────────────────────────────────
 MAIN="$ROOT/bin/menu.sh"
-off="$(run_menu "$MAIN" 8)"
-on="$(run_menu "$MAIN" 9 1)"
-check_absent     "main OFF: oculta Release"              "$off" "Release"
-check_contains   "main OFF: mantiene Observability"      "$off" "Observability"
+off="$(run_menu "$MAIN" 6)"       # dev OFF: Salir = opcion 6
+on="$(run_menu "$MAIN" 7 1)"      # dev ON : Salir = opcion 7
+check_contains   "main OFF: categoria 1 (estado)"        "$off" "¿Cómo está el sistema?"
+check_contains   "main OFF: categoria 2 (respaldos)"     "$off" "Respaldos"
+check_contains   "main OFF: categoria 3 (actualizar)"    "$off" "Actualizar la aplicación"
+check_contains   "main OFF: categoria 4 (base de datos)" "$off" "Base de datos"
+check_contains   "main OFF: categoria 5 (config)"        "$off" "Configuración y seguridad"
 check_contains   "main OFF: mantiene Salir"              "$off" "Salir"
-check_contains   "main ON: muestra Release"              "$on"  "Release"
+check_absent     "main OFF: oculta Avanzado (dev)"       "$off" "Avanzado"
+check_absent     "main OFF: sin banner dev"              "$off" "MODO DESARROLLADOR ACTIVO"
+check_contains   "main ON: muestra Avanzado (dev)"       "$on"  "Avanzado"
 check_contains   "main ON: banner dev"                   "$on"  "MODO DESARROLLADOR ACTIVO"
+check_contains   "main ON: mantiene las 5 categorias"    "$on"  "Configuración y seguridad"
 
 # ── Hidden commands stay reachable directly ──────────────────────────────────
 # (routing/docs reachability; live invocation is part of the VM rehearsal)

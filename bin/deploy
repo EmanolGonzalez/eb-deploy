@@ -43,10 +43,22 @@ show_main_help() {
   echo
   echo -e "\033[1mUso:\033[0m"
   echo "  deploy <modulo> <accion> [args...]"
+  echo "  deploy <modulo>                 # menu del modulo (health: estado simple)"
   echo "  deploy menu"
   echo "  deploy help"
   echo
-  echo -e "\033[1mModulos:\033[0m"
+  echo -e "\033[1mFlujo recomendado (deploy menu):\033[0m"
+  echo "  El menu principal agrupa las tareas en categorias:"
+  echo
+  echo "  1) ¿Cómo está el sistema?   estado (un toque) · diagnóstico · historial de deploys"
+  echo "  2) Respaldos                configurar / ver los existentes"
+  echo "  3) Actualizar la aplicación Backend · Frontend · Observabilidad"
+  echo "  4) Base de datos            crear · verificar · reset de esquema · rol Developer"
+  echo "  5) Configuración y seguridad HTTPS interno · nginx · llaves · servicios · config.env"
+  echo "  6) Avanzado (dev)           Let's Encrypt · release · desinstalar  [DEPLOY_DEV_MODE=1]"
+  echo
+  echo -e "\033[1mReferencia de comandos (CLI directa):\033[0m"
+  echo "  Las categorias del menu despachan a estos mismos comandos."
   echo
   echo -e "  \033[1;34mbackend\033[0m    Lifecycle del backend"
   echo "             install | update | rollback"
@@ -160,10 +172,17 @@ if [[ "$ACTION" == "--help" || "$ACTION" == "-h" ]]; then
   exit 0
 fi
 
-# Route to module command
-# Default action: `deploy health` (no action) -> simple operator status.
-if [[ -z "$ACTION" && "$MODULE" == "health" ]]; then
-  ACTION="simple"
+# Route to module command.
+# Bare `deploy <module>` (no action):
+#   - health   -> simple operator status (un toque)
+#   - otherwise -> that module's interactive menu (selects the action)
+if [[ -z "$ACTION" ]]; then
+  if [[ "$MODULE" == "health" ]]; then
+    ACTION="simple"
+  elif [[ -f "$MODULES_DIR/$MODULE/menu.sh" ]]; then
+    bash "$MODULES_DIR/$MODULE/menu.sh"
+    exit 0
+  fi
 fi
 
 SCRIPT="$MODULES_DIR/$MODULE/commands/${ACTION}.sh"
