@@ -22,6 +22,12 @@
 
 ## 1. Secuencia de deploy (orden exacto)
 
+> El menú del cliente (`sudo deploy menu`) sólo muestra las acciones de
+> operación. Las acciones de desarrollo/riesgo (`set-developer`, `run-schema`,
+> `reset-schema`, `configure-letsencrypt`, `Release`, `uninstall`) están ocultas
+> y se habilitan sólo con `DEPLOY_DEV_MODE=1`. Los comandos directos siguen
+> funcionando cuando se invocan a mano.
+
 ```bash
 # 1) Copiar por FTP la carpeta bs_deploy completa a  /app/deploy
 #    (incluye assets/ con los .deb y tarballs)
@@ -53,6 +59,7 @@ sudo deploy backend install           # pide versión + arranque controlado
 # 8) Verificar
 curl -kI https://<dominio>/            # 200
 curl -k  https://<dominio>/api/health  # 200 JSON, DB Healthy
+sudo deploy health                     # estado simple: [OK] ... → TODO FUNCIONANDO
 ```
 
 ---

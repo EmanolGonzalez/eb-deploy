@@ -7,11 +7,16 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$MODULE_DIR/../../core/logger.sh"
 source "$MODULE_DIR/../../core/input.sh"
+source "$MODULE_DIR/../../core/devmode.sh" 2>/dev/null || {
+  deploy_dev_mode() { [[ "${DEPLOY_DEV_MODE:-}" == "1" ]]; }
+  dev_mode_banner() { deploy_dev_mode && echo "*** MODO DESARROLLADOR ACTIVO ***" || true; }
+}
 
 while true; do
   echo
   divider
   echo "  RELEASE MENU"
+  dev_mode_banner
   divider
   menu_select "Selecciona una accion:" \
     "Construir componente" \

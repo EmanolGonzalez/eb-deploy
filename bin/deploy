@@ -47,28 +47,39 @@ show_main_help() {
   echo "             install | update | rollback"
   echo
   echo -e "  \033[1;34mhealth\033[0m     App Health: salud y estado de la aplicacion"
-  echo "             check | status | set-endpoint | full"
+  echo "             (sin accion) estado simple | check | status | set-endpoint | full"
   echo
   echo -e "  \033[1;34mdatabase\033[0m   Conexion, esquema y datos de prueba de BD"
-  echo "             check | set-developer | run-schema | reset-schema"
+  echo "             check | backup"
+  echo "             (dev) set-developer | run-schema | reset-schema"
   echo
   echo -e "  \033[1;34mnginx\033[0m      Configuracion de Nginx"
-  echo "             configure-https | configure-letsencrypt | reload"
+  echo "             configure-https | reload"
+  echo "             (dev) configure-letsencrypt"
   echo
-  echo -e "  \033[1;34msystem\033[0m     Setup, uninstall, servicios y audit log"
-  echo "             setup | uninstall | services | rotate-pem | audit"
+  echo -e "  \033[1;34msystem\033[0m     Setup, servicios y audit log"
+  echo "             setup | edit-config | services | rotate-pem | rotate-pii | audit | lint"
+  echo "             (dev) uninstall"
   echo
   echo -e "  \033[1;34mobservability\033[0m  Stack de observabilidad (Grafana/Prometheus/Loki/Alloy)"
   echo "             install | status | upgrade"
   echo
-  echo -e "  \033[1;34mrelease\033[0m    Build y empaquetado de componentes (dev)"
-  echo "             build"
+  echo -e "  \033[1;34mrelease\033[0m    Build y empaquetado de componentes"
+  echo "             (dev) build"
+  echo
+  echo -e "\033[1mModo desarrollador:\033[0m"
+  echo "  Los comandos marcados con (dev) NO se listan en los menus."
+  echo "  Para mostrarlos (solo desarrollo/CI):"
+  echo "    DEPLOY_DEV_MODE=1 deploy menu"
+  echo "  Los comandos directos (deploy database run-schema, deploy system uninstall,"
+  echo "  deploy nginx configure-letsencrypt, deploy release build) siguen funcionando."
   echo
   echo -e "\033[1mEjemplos:\033[0m"
   echo "  deploy backend install          # Instalar backend desde /app/artifacts/backend.rar"
   echo "  deploy backend update           # Cambiar a otra version local (con auto-rollback)"
   echo "  deploy backend rollback         # Volver a la version anterior"
-  echo "  deploy health status            # Estado completo del sistema"
+  echo "  deploy health                   # Estado simple del sistema (recomendado)"
+  echo "  deploy health status            # Diagnostico tecnico completo"
   echo "  deploy database check           # Probar conexion a BD"
   echo "  deploy nginx reload             # Recargar Nginx"
   echo "  deploy system audit             # Ver log de despliegues"
@@ -138,6 +149,11 @@ if [[ "$ACTION" == "--help" || "$ACTION" == "-h" ]]; then
 fi
 
 # Route to module command
+# Default action: `deploy health` (no action) -> simple operator status.
+if [[ -z "$ACTION" && "$MODULE" == "health" ]]; then
+  ACTION="simple"
+fi
+
 SCRIPT="$MODULES_DIR/$MODULE/commands/${ACTION}.sh"
 
 if [[ ! -f "$SCRIPT" ]]; then

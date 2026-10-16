@@ -304,11 +304,22 @@ bash /app/deploy/bin/deploy menu
 
 El menu modular tiene submenus por dominio:
 - **Backend / Frontend** — install, update, rollback
-- **App Health** — full, check, status, set-endpoint
-- **Database** — check, set-developer, run-schema, reset-schema
+- **App Health** — estado simple (recomendado) + diagnostico tecnico (full, check, status, set-endpoint)
+- **Database** — check, backup
 - **Nginx** — configure-https, reload
-- **System** — setup, edit-config, uninstall, services, rotate-pem, rotate-pii, audit, lint
+- **System** — setup, edit-config, services, rotate-pem, rotate-pii, audit, lint
 - **Release** — build
+
+**Modo desarrollador:** las acciones de desarrollo/riesgo (`set-developer`,
+`run-schema`, `reset-schema`, `configure-letsencrypt`, `Release`, `uninstall`)
+NO se listan en los menus del cliente. Para mostrarlas (solo desarrollo/CI):
+
+```bash
+DEPLOY_DEV_MODE=1 bash /app/deploy/bin/deploy menu
+```
+
+Los comandos siguen funcionando al invocarlos directo (`deploy database
+run-schema`, `deploy system uninstall`, `deploy release build`, ...).
 
 ### CLI directa
 
@@ -374,6 +385,21 @@ El healthcheck de backend verifica en orden:
 3. HTTP 200 en `/api/health`, `/health` o `/healthz`
 
 ### Estado del sistema
+
+Vista simple para el operador (un solo comando, sin jerga ni JSON). Corre
+**sin accion** — `deploy health` muestra el estado y termina con un veredicto:
+`→ TODO FUNCIONANDO` (exit 0) o una linea accionable `→ QUÉ HACER: ...`
+(exit 1). Si el modulo de observabilidad no esta instalado, esa linea se omite.
+
+```bash
+deploy health                     # estado simple (recomendado)
+[OK]   Página web
+[OK]   Aplicación
+[OK]   Base de datos
+→ TODO FUNCIONANDO
+```
+
+El diagnostico tecnico sigue disponible:
 
 ```bash
 bash status.sh          # texto legible

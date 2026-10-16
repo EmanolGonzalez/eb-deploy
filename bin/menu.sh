@@ -22,6 +22,10 @@ source "$BASE_DIR/core/logger.sh" 2>/dev/null || source "$MODULES_DIR/../core/lo
   log() { echo -e "\033[1;34m==> $*\033[0m"; }
   err() { echo -e "\033[1;31mERR  $*\033[0m" >&2; }
 }
+source "$BASE_DIR/core/devmode.sh" 2>/dev/null || source "$MODULES_DIR/../core/devmode.sh" 2>/dev/null || {
+  deploy_dev_mode() { [[ "${DEPLOY_DEV_MODE:-}" == "1" ]]; }
+  dev_mode_banner() { deploy_dev_mode && echo "*** MODO DESARROLLADOR ACTIVO ***" || true; }
+}
 source "$BASE_DIR/core/input.sh" 2>/dev/null || source "$MODULES_DIR/../core/input.sh" 2>/dev/null || {
   menu_select() {
     local prompt="$1"; shift
@@ -59,17 +63,23 @@ while true; do
   divider
   echo "  EB Deploy Console"
   show_status_line
+  dev_mode_banner
   divider
-  menu_select "Seleccione una accion:" \
-    "Backend (install/update/rollback)" \
-    "Frontend (install/update/rollback)" \
-    "App Health (check/status)" \
-    "Database" \
-    "Nginx" \
-    "System" \
-    "Observability (Grafana/Prometheus/Loki/Alloy)" \
-    "Release" \
-    "Salir"
+  # Curation: "Release" es build/empaquetado para el proveedor (CI), no una
+  # operacion del cliente. Solo se lista con developer mode activo; el modulo
+  # sigue accesible directo (deploy release build / modules/release/menu.sh).
+  local_options=("Backend (install/update/rollback)")
+  local_options+=("Frontend (install/update/rollback)")
+  local_options+=("App Health (check/status)")
+  local_options+=("Database")
+  local_options+=("Nginx")
+  local_options+=("System")
+  local_options+=("Observability (Grafana/Prometheus/Loki/Alloy)")
+  if deploy_dev_mode; then
+    local_options+=("Release")
+  fi
+  local_options+=("Salir")
+  menu_select "Seleccione una accion:" "${local_options[@]}"
 
   # '|| true' en cada submenu: si un submenu sale non-zero (ej. exit 130 por
   # Ctrl+C, o un comando que falla), NO queremos que 'set -e' cierre la consola
