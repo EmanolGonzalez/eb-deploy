@@ -28,7 +28,9 @@ Las `VITE_*` se **hornean** en `npm run build`, NO se leen en runtime. Si las ca
 
 ### FASE 1 — Llevar al server (offline)
 
-- [ ] Copiar `bs_deploy/` completo (con `assets/*.deb`) a `/app/deploy`.
+- [ ] Generar el paquete partido: `scripts/pack-transfer.sh` (o `--all`). Ver **Paso 1**.
+- [ ] Subir `deploy.rar` + las partes de assets que correspondan y extraerlas con
+      `unrar x` **en la raiz** (`/app/deploy`). Verificar `SHA256SUMS.txt`.
 - [ ] `app.rar` frontend → `/app/artifacts/frontend.rar`; backend → `/app/artifacts/backend.rar`.
 - [ ] `deploy system lint` → **verde** (sintaxis, `local`, SSL). Si falla, NO sigas.
 
@@ -94,9 +96,10 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 | `ops-menu.sh` | Consola de operaciones — entrypoint del sistema en el servidor |
 | `setup/setup-server.sh` | Aprovisionamiento inicial: instala dependencias, crea config.env |
 | `install.sh` | Instala un componente desde un archivo app.rar local |
-| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck | set-developer | run-schema | reset-schemafalla |
+| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck falla |
 | `rollback.sh` | Restaura un componente a una version instalada localmente |
 | `release.sh` | Construye y empaqueta un componente en app.rar (se ejecuta desde dev) |
+| `scripts/pack-transfer.sh` | Genera `deploy.rar` + una parte de assets por grupo + `SHA256SUMS.txt` (se ejecuta desde dev) |
 | `healthcheck.sh` | Valida que backend/frontend esten operativos |
 | `status.sh` | Reporte de estado completo del sistema |
 | `set-db-connection.sh` | Configura la cadena de conexion de base de datos |
@@ -203,14 +206,60 @@ Ejemplo:
 
 ## Preparacion del entorno (primera vez)
 
-### Paso 1 — Copiar el sistema de deploy al servidor
+### Paso 1 — Generar y copiar el sistema de deploy al servidor
 
-Copia toda la carpeta `deploy/` al servidor (SCP, USB, etc.):
+La transferencia va **partida**: `deploy.rar` lleva solo el toolkit y cada grupo
+de `assets/` viaja en su propio `deploy_<grupo>_assets.rar`. Generá las partes en
+la **maquina de build** (necesita `rar`/WinRAR con licencia):
 
 ```bash
-scp -r deploy/ user@servidor:/tmp/deploy
-ssh user@servidor "sudo cp -r /tmp/deploy /app/deploy && sudo chmod +x /app/deploy/*.sh /app/deploy/bin/* /app/deploy/modules/*/commands/*.sh"
+scripts/pack-transfer.sh                 # deploy.rar + una parte por grupo
+scripts/pack-transfer.sh --all           # deploy.rar + deploy_assets_all.rar
+scripts/pack-transfer.sh --only nginx    # deploy.rar + solo nginx (incremental)
 ```
+
+Salida por defecto: `transfer/` (gitignoreado); `--out <dir>` cambia el destino.
+Cada parte de assets guarda las rutas `assets/<grupo>/...`, así que al extraerla
+en `/app/deploy` el arbol queda igual que con la carpeta completa.
+
+**Que subir segun el escenario:**
+
+- **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+  `database`, `nginx`, `tools` (+ `observability` **solo si el sitio usa** el
+  stack ADR-007; `packages` solo si no esta vacio). Tambien podes usar
+  `deploy_assets_all.rar` para una sola subida.
+- **Servidor existente que solo actualiza el toolkit:** `deploy.rar` unicamente.
+- **Cambio de un asset puntual:** `deploy.rar` (si tambien cambio el toolkit) +
+  la parte del grupo afectado.
+
+**Transferir, verificar y extraer** (cliente; solo necesita `unrar`):
+
+```bash
+# 1) Subir las partes + SHA256SUMS.txt a /tmp/transfer (SCP, FTP, USB)
+# 2) Verificar integridad ANTES de extraer:
+cd /tmp/transfer
+sha256sum -c SHA256SUMS.txt
+
+# 3) Extraer en la raiz del repo, una parte por vez:
+sudo mkdir -p /app/deploy
+cd /app/deploy
+sudo unrar x /tmp/transfer/deploy.rar
+sudo unrar x /tmp/transfer/deploy_system_assets.rar
+# ... repetir por cada grupo que corresponda
+```
+
+**Servidor limpio sin `unrar`:** subí ademas
+`assets/tools/rarlinux-x64-720.tar.gz` (736 KB) y extraelo con `tar`; ese
+binario sirve para extraer las partes. Despues `bootstrap.sh` instala
+`rar`/`unrar` desde `assets/tools/`.
+
+**Licencia:** crear los `.rar` requiere WinRAR/`rar` con licencia en la maquina
+de build. El cliente solo necesita `unrar` (sin licencia).
+
+> Alternativa sin split (no recomendada para cambios chicos): copiar la carpeta
+> `bs_deploy` completa, con `assets/` poblada, a `/app/deploy`. **Nunca** un
+> `git clone`: los `.deb`/tarballs estan gitignoreados y `assets/` quedaria
+> vacio.
 
 ### Paso 2 — Bootstrap (instalacion offline de dependencias)
 
@@ -302,13 +351,35 @@ O via CLI:
 bash /app/deploy/bin/deploy menu
 ```
 
-El menu modular tiene submenus por dominio:
-- **Backend / Frontend** — install, update, rollback
-- **App Health** — full, check, status, set-endpoint
-- **Database** — check, set-developer, run-schema, reset-schema
-- **Nginx** — configure-https, reload
-- **System** — setup, edit-config, uninstall, services, rotate-pem, rotate-pii, audit, lint
-- **Release** — build
+El menu principal agrupa las tareas por **categoría** ("¿qué querés hacer?"):
+
+1. **¿Cómo está el sistema?** — estado (un toque) · diagnóstico completo · historial de deploys (auditoría)
+2. **Respaldos** — configurar / ver los existentes
+3. **Actualizar la aplicación** — Backend · Frontend · Observabilidad
+4. **Base de datos** — crear base · verificar conexión · reset de esquema · asignar rol Developer
+5. **Configuración y seguridad** — editar config.env · HTTPS interno · recargar nginx · rotar llave RSA · rotar Hash Key PII · gestionar servicios
+6. **🔧 Avanzado** (solo con `DEPLOY_DEV_MODE=1`) — Let's Encrypt · release (build) · desinstalar
+
+Las categorías son una **vista**: cada opción despacha al mismo comando de la CLI
+(`deploy <modulo> <accion>`), así que la automatización y los runbooks no cambian.
+Los menús por módulo siguen disponibles: `deploy <modulo>` (sin acción) abre el
+menú de ese módulo.
+
+**Base de datos:** el esquema lo aplica EF automaticamente al arrancar. El comando
+`run-schema` fue **removido**. Si falta la base entera: `deploy database create`
+(la crea vacia). Si el esquema quedo roto: `deploy database reset-schema` (borra
+las tablas, conserva la base) y EF reconstruye al arrancar.
+
+**Modo desarrollador:** la categoría **6) Avanzado** (Let's Encrypt, release,
+desinstalar) NO se lista en el menu del cliente. Para mostrarla (solo
+desarrollo/CI):
+
+```bash
+DEPLOY_DEV_MODE=1 bash /app/deploy/bin/deploy menu
+```
+
+Los comandos siguen funcionando al invocarlos directo (`deploy nginx
+configure-letsencrypt`, `deploy system uninstall`, `deploy release build`, ...).
 
 ### CLI directa
 
@@ -375,6 +446,21 @@ El healthcheck de backend verifica en orden:
 
 ### Estado del sistema
 
+Vista simple para el operador (un solo comando, sin jerga ni JSON). Corre
+**sin accion** — `deploy health` muestra el estado y termina con un veredicto:
+`→ TODO FUNCIONANDO` (exit 0) o una linea accionable `→ QUÉ HACER: ...`
+(exit 1). Si el modulo de observabilidad no esta instalado, esa linea se omite.
+
+```bash
+deploy health                     # estado simple (recomendado)
+[OK]   Página web
+[OK]   Aplicación
+[OK]   Base de datos
+→ TODO FUNCIONANDO
+```
+
+El diagnostico tecnico sigue disponible:
+
 ```bash
 bash status.sh          # texto legible
 bash status.sh --json   # JSON para automatizacion/monitoreo
@@ -424,12 +510,53 @@ Crea o actualiza el virtual host Nginx para subdominio interno con certificado T
 Requiere **dos VMs separadas** (una para la BD, otra para la app) — este toolkit corre en la VM de la app y hace `mariadb-dump` **remoto** contra la BD via `ConnectionStrings__MariaDB`. El dump cifrado queda en `Backup__Dir` (default `/app/backups`) **en la VM de la app**, no en la de la BD — eso ya es un segundo medio real, no una copia en el mismo disco.
 
 - `deploy system setup` autogenera `Backup__EncryptionPassphrase` la primera vez (igual que `PiiEncryption__HashKeyBase64`) y la muestra una sola vez — **respaldala fuera del servidor**. Sin ella, los backups cifrados quedan ilegibles para siempre.
-- Corre automaticamente todos los dias a las 03:00 (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh`.
-- Manual: `deploy menu` → Database → "Correr backup ahora", o `bash modules/database/commands/backup.sh`.
+- Corre automaticamente **cada 3 dias a las 03:00** (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh` (unidades renderizadas desde `modules/database/lib/backup-schedule.sh`).
+  - Mecanismo: `OnCalendar=*-*-01/3 03:00:00` (dias 1, 4, 7, …) + `Persistent=true`. Se prefiere a `OnUnitActiveSec=3d` porque es hora fija de reloj (no se corre con cada ejecucion manual) y `Persistent=true` recupera la corrida si el server estaba apagado.
+- Operador: `deploy menu` → Database → **"Respaldos (configurar / ver los existentes)"** o `deploy database backup`:
+  - Si **no esta configurado** → ofrece configurarlo: asegura la passphrase (genera si falta; `deploy system setup` tambien lo hace), crea la carpeta `Backup__Dir` y **instala el timer** (pide confirmacion y explica en lenguaje simple).
+  - Si **ya esta configurado** → **lista los respaldos existentes** (fecha + tamano, mas reciente primero) y el estado de la programacion (proxima/ultima corrida).
 - Retencion local configurable en `Backup__RetentionDays` (default 14 dias) — borra automaticamente los `.sql.gz.enc` mas viejos.
+- Forzar un respaldo ahora: `systemctl start backup.service`.
+- Verificar la programacion: `systemctl list-timers backup.timer` (NEXT/LAST) o `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
 - Ver logs: `journalctl -u backup.service -n 50`.
 
-**Restaurar / descifrar un backup:**
+### Restaurar un respaldo (recuperacion)
+
+**Operador:** `deploy menu` → **Respaldos** → **"Restaurar un respaldo"**, o
+`deploy database restore`.
+
+```bash
+sudo deploy database restore                 # lista y deja elegir por numero
+sudo deploy database restore --last           # el respaldo regular mas reciente
+sudo deploy database restore --file <ruta>    # un archivo especifico
+sudo deploy database restore --last --yes      # automatizacion (sin prompt)
+```
+
+Flujo:
+
+1. **Lista** los respaldos de la base actual (fecha + tamano, mas reciente primero)
+   — incluye los `pre-restore-*`. Sin seleccion, muestra la lista y sale.
+2. El operador elige uno por numero (o `--last` / `--file`).
+3. **Confirmacion explicita**: muestra una advertencia de que se REEMPLAZA el
+   contenido actual y pide escribir `RESTAURAR`. Sin terminal y sin `--yes` se
+   **rechaza** (no hay forma de confirmar a ciegas).
+4. **Respaldo pre-restore obligatorio**: antes de tocar la base, guarda el estado
+   ACTUAL en `pre-restore-${DB}-<timestamp>.sql.gz.enc` (mismo `Backup__Dir`). Si
+   este paso falla, **se aborta** la restauracion.
+5. **Restaura**: descifra (AES-256) → gunzip → carga en `${DB}` via
+   `ConnectionStrings__MariaDB` (cliente directo o docker), igual que `backup.sh`.
+6. **Verifica**: sugiere `deploy health simple` y reporta la ruta del pre-restore.
+
+Fallos:
+
+- Passphrase ausente/`CHANGE_ME` o cadena de conexion invalida → aborta con mensaje
+  claro, sin tocar la base.
+- Descifrado fallido (passphrase incorrecta / archivo corrupto) → la base **NO** se
+  modifica.
+- Carga fallida a mitad → avisa que la base puede quedar incompleta y reporta el
+  `pre-restore`; para volver: `deploy database restore --file <pre-restore> --yes`.
+
+**Restaurar manualmente (sin el toolkit):**
 
 ```bash
 openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:<Backup__EncryptionPassphrase>" \
@@ -469,13 +596,17 @@ journalctl -u nginx -n 50
 ```
 [Dev / CI]                          [Servidor]
 
-release.sh                          scp -r deploy/ user@server:/tmp/deploy
-  ├── selecciona componente          ssh user@server "sudo cp -r /tmp/deploy /app/deploy"
-  ├── ingresa version
-  ├── build local (npm/dotnet)       sudo bash /app/deploy/setup/bootstrap.sh
-  ├── WinRAR → app.rar                 ├── instala desde assets/ (offline)
-  └── muestra ruta de app.rar          ├── Node.js, .NET SDK, rar/unrar
-                                         └── fallback a apt si no hay asset
+scripts/pack-transfer.sh            scp deploy.rar + deploy_<grupo>_assets.rar
+  ├── deploy.rar (sin assets)         + SHA256SUMS.txt → /tmp/transfer
+  ├── deploy_<grupo>_assets.rar       sha256sum -c SHA256SUMS.txt
+  └── SHA256SUMS.txt                  cd /app/deploy && unrar x <cada parte>
+
+release.sh                          sudo bash /app/deploy/setup/bootstrap.sh
+  ├── selecciona componente            ├── instala desde assets/ (offline)
+  ├── ingresa version                  ├── Node.js, .NET SDK, rar/unrar
+  ├── build local (npm/dotnet)         └── fallback a apt si no hay asset
+  ├── WinRAR → app.rar
+  └── muestra ruta de app.rar
 
                                       sudo bash /app/deploy/setup/setup-server.sh
                                         ├── habilita Nginx, systemd

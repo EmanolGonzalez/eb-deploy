@@ -13,3 +13,7 @@
 assets/database/
 assets/system/
 assets/observability/
+
+# Paquete de transferencia generado por scripts/pack-transfer.sh
+transfer/
+dist/

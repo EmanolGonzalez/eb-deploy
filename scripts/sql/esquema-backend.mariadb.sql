@@ -1,17 +1,21 @@
 -- =============================================================================
--- esquema-backend.mariadb.sql — Esquema completo del backend (MariaDB).
+-- esquema-backend.mariadb.sql — DDL de REFERENCIA del backend (MariaDB).
 --
 -- GENERADO desde las migraciones de EF Core (fuente de verdad del esquema).
 -- NO editar a mano: regenerar con el comando de abajo.
 --
--- Proposito: instalacion FRESCA sobre una BD vacia, para el camino alterno
---   `deploy database run-schema` (ver reset-schema-mariadb.sql). El backend
---   aplica estas mismas migraciones automaticamente al arrancar; no mezclar
---   ambos caminos sobre la misma base.
+-- OJO: LA INSTALACION NO EJECUTA ESTE ARCHIVO.
+--   El backend aplica las migraciones EF automaticamente al arrancar; el
+--   esquema real lo construye EF. Este DDL se conserva solo como REFERENCIA
+--   (auditoria / entregable ScriptsBD). El comando historico
+--   `deploy database run-schema` fue REMOVIDO.
+--   Flujo de base de datos:
+--     - Falta la base entera:  `deploy database create` (crea la base vacia)
+--     - Esquema roto/viejo:    `deploy database reset-schema` (borra tablas,
+--                              conserva la base) y EF reconstruye al arrancar.
 --
--- Incluye la tabla __EFMigrationsHistory con la migracion aplicada, para que
--- el historial quede consistente con EF y no entre en crash-loop
--- (Duplicate column) al arrancar el backend despues de correr este script.
+-- Incluye la tabla __EFMigrationsHistory tal como la generaria EF (util si
+-- alguien reaplica este DDL a mano como referencia).
 --
 -- Regeneracion (desde backend/):
 --   dotnet ef migrations script -p Persistence -s Api -c MariaDbAppDbContext \

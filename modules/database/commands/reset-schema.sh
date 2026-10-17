@@ -4,8 +4,9 @@ set -euo pipefail
 # modules/database/commands/reset-schema.sh — Drop all tables, keep database
 # =============================================================================
 #
-# Use case: Schema is broken / incompatible. Wipe all tables and re-apply
-# a fresh schema con: deploy database run-schema
+# Use case: Schema is broken / incompatible. Wipe all tables and let EF rebuild
+# a fresh schema automatically when the backend starts (EF migrations are the
+# only source of truth).
 #
 # WARNING: This deletes ALL DATA in all tables. Use with extreme caution.
 # =============================================================================

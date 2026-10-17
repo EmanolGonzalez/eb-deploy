@@ -26,6 +26,14 @@ fi
 
 source "$BASE_DIR/core/logger.sh"
 
+# ── REMOVED ACTIONS ───────────────────────────────────────────────────────────
+# Commands the toolkit no longer supports. Kept out of the per-module help even
+# if a stale command file remains in the tree (e.g. run-schema, pending its
+# deletion). Space-separated, matched as whole words.
+removed_commands() {
+  echo "run-schema"
+}
+
 # ── HELP ──────────────────────────────────────────────────────────────────────
 
 show_main_help() {
@@ -35,10 +43,22 @@ show_main_help() {
   echo
   echo -e "\033[1mUso:\033[0m"
   echo "  deploy <modulo> <accion> [args...]"
+  echo "  deploy <modulo>                 # menu del modulo (health: estado simple)"
   echo "  deploy menu"
   echo "  deploy help"
   echo
-  echo -e "\033[1mModulos:\033[0m"
+  echo -e "\033[1mFlujo recomendado (deploy menu):\033[0m"
+  echo "  El menu principal agrupa las tareas en categorias:"
+  echo
+  echo "  1) ¿Cómo está el sistema?   estado (un toque) · diagnóstico · historial de deploys"
+  echo "  2) Respaldos                configurar / ver los existentes · restaurar un respaldo"
+  echo "  3) Actualizar la aplicación Backend · Frontend · Observabilidad"
+  echo "  4) Base de datos            crear · verificar · reset de esquema · rol Developer"
+  echo "  5) Configuración y seguridad HTTPS interno · nginx · llaves · servicios · config.env"
+  echo "  6) Avanzado (dev)           Let's Encrypt · release · desinstalar  [DEPLOY_DEV_MODE=1]"
+  echo
+  echo -e "\033[1mReferencia de comandos (CLI directa):\033[0m"
+  echo "  Las categorias del menu despachan a estos mismos comandos."
   echo
   echo -e "  \033[1;34mbackend\033[0m    Lifecycle del backend"
   echo "             install | update | rollback"
@@ -47,28 +67,39 @@ show_main_help() {
   echo "             install | update | rollback"
   echo
   echo -e "  \033[1;34mhealth\033[0m     App Health: salud y estado de la aplicacion"
-  echo "             check | status | set-endpoint | full"
+  echo "             (sin accion) estado simple | check | status | set-endpoint | full"
   echo
-  echo -e "  \033[1;34mdatabase\033[0m   Conexion, esquema y datos de prueba de BD"
-  echo "             check | set-developer | run-schema | reset-schema"
+  echo -e "  \033[1;34mdatabase\033[0m   Conexion, base de datos y respaldos"
+  echo "             backup | restore | create | check | reset-schema | set-developer"
   echo
   echo -e "  \033[1;34mnginx\033[0m      Configuracion de Nginx"
-  echo "             configure-https | configure-letsencrypt | reload"
+  echo "             configure-https | reload"
+  echo "             (dev) configure-letsencrypt"
   echo
-  echo -e "  \033[1;34msystem\033[0m     Setup, uninstall, servicios y audit log"
-  echo "             setup | uninstall | services | rotate-pem | audit"
+  echo -e "  \033[1;34msystem\033[0m     Setup, servicios y audit log"
+  echo "             setup | edit-config | services | rotate-pem | rotate-pii | audit | lint"
+  echo "             (dev) uninstall"
   echo
   echo -e "  \033[1;34mobservability\033[0m  Stack de observabilidad (Grafana/Prometheus/Loki/Alloy)"
   echo "             install | status | upgrade"
   echo
-  echo -e "  \033[1;34mrelease\033[0m    Build y empaquetado de componentes (dev)"
-  echo "             build"
+  echo -e "  \033[1;34mrelease\033[0m    Build y empaquetado de componentes"
+  echo "             (dev) build"
+  echo
+  echo -e "\033[1mModo desarrollador:\033[0m"
+  echo "  Los comandos marcados con (dev) NO se listan en los menus."
+  echo "  Para mostrarlos (solo desarrollo/CI):"
+  echo "    DEPLOY_DEV_MODE=1 deploy menu"
+  echo "  Los comandos directos (deploy nginx configure-letsencrypt,"
+  echo "  deploy system uninstall, deploy release build) siguen funcionando."
   echo
   echo -e "\033[1mEjemplos:\033[0m"
   echo "  deploy backend install          # Instalar backend desde /app/artifacts/backend.rar"
   echo "  deploy backend update           # Cambiar a otra version local (con auto-rollback)"
   echo "  deploy backend rollback         # Volver a la version anterior"
-  echo "  deploy health status            # Estado completo del sistema"
+  echo "  deploy health                   # Estado simple del sistema (recomendado)"
+  echo "  deploy health status            # Diagnostico tecnico completo"
+  echo "  deploy database create          # Crear la base de datos (si fue eliminada)"
   echo "  deploy database check           # Probar conexion a BD"
   echo "  deploy nginx reload             # Recargar Nginx"
   echo "  deploy system audit             # Ver log de despliegues"
@@ -101,6 +132,10 @@ show_module_help() {
     for cmd in "$cmd_dir"/*.sh; do
       local name
       name="$(basename "$cmd" .sh)"
+      # Acciones removidas del toolkit: se ocultan del help aunque quede un
+      # archivo obsoleto en el arbol (p.ej. run-schema, a la espera de su
+      # eliminacion definitiva).
+      [[ " $(removed_commands) " == *" $name "* ]] && continue
       # Try to extract description from first comment line
       local desc
       desc="$(head -3 "$cmd" | grep -E '^#' | grep -v '^#!/' | grep -v '^# ===' | sed 's/^#[[:space:]]*//' | head -1 || true)"
@@ -137,7 +172,19 @@ if [[ "$ACTION" == "--help" || "$ACTION" == "-h" ]]; then
   exit 0
 fi
 
-# Route to module command
+# Route to module command.
+# Bare `deploy <module>` (no action):
+#   - health   -> simple operator status (un toque)
+#   - otherwise -> that module's interactive menu (selects the action)
+if [[ -z "$ACTION" ]]; then
+  if [[ "$MODULE" == "health" ]]; then
+    ACTION="simple"
+  elif [[ -f "$MODULES_DIR/$MODULE/menu.sh" ]]; then
+    bash "$MODULES_DIR/$MODULE/menu.sh"
+    exit 0
+  fi
+fi
+
 SCRIPT="$MODULES_DIR/$MODULE/commands/${ACTION}.sh"
 
 if [[ ! -f "$SCRIPT" ]]; then

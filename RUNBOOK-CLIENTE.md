@@ -8,8 +8,59 @@
 
 ## 0. Regla de entrega (IMPORTANTE)
 
-- El paquete se transfiere por **FTP: la carpeta `bs_deploy` COMPLETA** (con `assets/` poblada). **NUNCA un `git clone`** — los `.deb`/tarballs están gitignoreados y un clone deja `assets/` vacío → el bootstrap se rompe sin internet.
-- **Script y assets viajan juntos.** Si actualizás `setup/bootstrap.sh`, subí también `assets/system/`. No hagas cherry-pick de un solo archivo.
+La transferencia va **partida**: el toolkit liviano y cada grupo de assets en su
+propio `.rar`. Así un cambio de una línea no obliga a subir ~1.1 GB.
+
+| Parte | Contenido | Peso aprox. |
+|---|---|---|
+| `deploy.rar` | toolkit (bin, core, modules, setup, scripts, runbooks), **sin `assets/`** | 148 KB |
+| `deploy_dotnet_assets.rar` | `assets/dotnet/` (SDK .NET) | 229 MB |
+| `deploy_system_assets.rar` | `assets/system/` (.deb del SO) | 68 MB |
+| `deploy_node_assets.rar` | `assets/node/` | 29 MB |
+| `deploy_database_assets.rar` | `assets/database/` | 3.9 MB |
+| `deploy_nginx_assets.rar` | `assets/nginx/` | 792 KB |
+| `deploy_tools_assets.rar` | `assets/tools/` (rar/unrar) | 736 KB |
+| `deploy_packages_assets.rar` | `assets/packages/` | vacío hoy |
+| `deploy_observability_assets.rar` | `assets/observability/` | 750 MB |
+| `deploy_assets_all.rar` | todos los assets juntos (`--all`) | ~1.1 GB |
+| `SHA256SUMS.txt` | checksum SHA-256 de cada parte | — |
+
+- **Generación (máquina de build, con `rar`/WinRAR):**
+  ```bash
+  scripts/pack-transfer.sh                 # deploy.rar + una parte por grupo
+  scripts/pack-transfer.sh --all           # deploy.rar + deploy_assets_all.rar
+  scripts/pack-transfer.sh --only nginx    # deploy.rar + solo nginx (incremental)
+  ```
+  Salida por defecto: `transfer/` (gitignoreado). `--out <dir>` cambia el destino.
+- **Qué subir según el escenario:**
+  - **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+    `database`, `nginx`, `tools` (y `observability` **solo si el sitio usa** el
+    stack de observabilidad). `packages` solo si no está vacío. También podés
+    usar `deploy_assets_all.rar` para una sola subida.
+  - **Servidor existente que solo actualiza el toolkit:** `deploy.rar` únicamente.
+  - **Cambió un asset puntual:** `deploy.rar` (si también cambió el toolkit) +
+    la parte del grupo afectado.
+- **Extracción:** cada parte de assets guarda `assets/<grupo>/...`; extraé
+  **siempre en la raíz del repo** (`/app/deploy`) para reconstituir el árbol:
+  ```bash
+  cd /app/deploy
+  sudo unrar x /ruta/deploy.rar
+  sudo unrar x /ruta/deploy_<grupo>_assets.rar
+  ```
+- **Verificación de integridad:** con las partes y `SHA256SUMS.txt` en la misma
+  carpeta, antes de extraer:
+  ```bash
+  cd /ruta/donde/estan/las/partes
+  sha256sum -c SHA256SUMS.txt
+  ```
+- **NUNCA un `git clone`** — los `.deb`/tarballs están gitignoreados y un clone
+  deja `assets/` vacío → el bootstrap se rompe sin internet.
+- **Licencia:** crear los `.rar` requiere WinRAR/`rar` con licencia en la
+  máquina de build. El cliente **solo necesita `unrar`** para extraer (sin
+  licencia); el binario viaja en `assets/tools/rarlinux-*.tar.gz` y
+  `bootstrap.sh` lo instala. Si el servidor está limpio y todavía no tiene
+  `unrar`, subí ese `.tar.gz` (736 KB) aparte y extraelo con `tar`; después el
+  toolkit instala `rar`/`unrar` desde `assets/tools/`.
 - Git es solo para versionar/resguardar el código.
 
 ## Prerrequisitos de infraestructura
@@ -22,9 +73,22 @@
 
 ## 1. Secuencia de deploy (orden exacto)
 
+> El menú del cliente (`sudo deploy menu`) agrupa el trabajo por **categoría**
+> (¿qué querés hacer?): **1) ¿Cómo está el sistema?** · **2) Respaldos** ·
+> **3) Actualizar la aplicación** · **4) Base de datos** ·
+> **5) Configuración y seguridad**. Cada opción despacha al mismo comando de la
+> CLI (`sudo deploy <módulo> <acción>`), así que no cambia nada para la
+> automatización.
+>
+> La categoría **6) Avanzado** (`configure-letsencrypt`, `release`, `uninstall`)
+> está oculta y se habilita sólo con `DEPLOY_DEV_MODE=1`. Los comandos directos
+> siguen funcionando cuando se invocan a mano. El módulo **Database** NO tiene
+> acciones ocultas.
+
 ```bash
-# 1) Copiar por FTP la carpeta bs_deploy completa a  /app/deploy
-#    (incluye assets/ con los .deb y tarballs)
+# 1) Transferir el paquete partido (ver §0) a /app/deploy:
+#      deploy.rar + deploy_<grupo>_assets.rar que correspondan
+#    Verificar checksums y extraer con 'unrar x' EN LA RAIZ (/app/deploy).
 
 # 2) Setup: bootstrap offline + nginx + systemd + config.env + CLI
 sudo bash /app/deploy/setup/setup-server.sh
@@ -35,9 +99,10 @@ sudo bash /app/deploy/setup/setup-server.sh
 sudo deploy nginx configure-https
 #    - Dejá el par cert+key en /app/artifacts/ssl/  (o los pide interactivo)
 
-# 4) Base de datos: dejar VACÍA para que EF migre de cero
-sudo deploy database reset-schema     # SOLO si la BD tiene esquema viejo/roto
-#    NO uses 'run-schema' — EF (auto-migrate) es la ÚNICA fuente de verdad.
+# 4) Base de datos: EF migra el esquema al arrancar el backend.
+sudo deploy database create           # SOLO si borraron la base (la crea vacía)
+sudo deploy database reset-schema     # SOLO si el esquema viejo/roto: borra tablas, conserva la base
+#    El comando 'run-schema' YA NO EXISTE — EF (auto-migrate) es la ÚNICA fuente de verdad.
 
 # 5) Copiar por FTP los artefactos a /app/artifacts/
 #      frontend -> /app/artifacts/frontend.rar
@@ -53,6 +118,7 @@ sudo deploy backend install           # pide versión + arranque controlado
 # 8) Verificar
 curl -kI https://<dominio>/            # 200
 curl -k  https://<dominio>/api/health  # 200 JSON, DB Healthy
+sudo deploy health                     # estado simple: [OK] ... → TODO FUNCIONANDO
 ```
 
 ---
@@ -181,16 +247,59 @@ sudo journalctl -u backend -f      # mirás la migración en vivo
 
 - Un arranque **único y controlado** (desde detenido) evita la carrera de `Restart=always`.
 - **BD vacía + `InitialCreate` único** → EF crea todo de cero, limpio.
-- **NO mezclar** `run-schema` con auto-migrate: elegí una sola fuente de verdad (EF).
+- La base la crea EF si no existe; si alguien la borró del servidor, `deploy database create` la recrea vacía. NO hay comando de esquema manual: EF es la única fuente de verdad.
 
 ---
 
-## 5. Troubleshooting rápido
+## 5. Respaldos de base de datos
+
+Los respaldos son dumps cifrados (AES-256) de MariaDB, guardados **en esta VM**
+(la de la app), no en la de la base de datos.
+
+- **Automático:** cada **3 días a las 03:00** (± 10 min), vía `backup.timer` /
+  `backup.service` (systemd). El timer lo instala `deploy system setup`; si faltara,
+  se instala solo al configurar los respaldos.
+- **Operador:** `sudo deploy menu` → **Respaldos** →
+  **"Respaldos (configurar / ver los existentes)"** (o `sudo deploy database backup`):
+  - Si **no está configurado** → ofrece configurarlo: genera la clave de cifrado,
+    crea la carpeta y **instala el timer**. Pide confirmación y explica qué quedó.
+  - Si **ya está configurado** → **lista los respaldos** existentes (fecha y tamaño,
+    el más reciente primero) y muestra el estado de la programación.
+- **La clave de cifrado** (`Backup__EncryptionPassphrase`) es CRÍTICA: si se pierde,
+  los respaldos ya generados quedan ilegibles. Respaldala fuera del servidor.
+- **Retención:** 14 días (configurable en `Backup__RetentionDays`).
+- **Forzar un respaldo ahora:** `sudo systemctl start backup.service`.
+- **Verificar la programación:** `systemctl list-timers backup.timer` (NEXT/LAST) o
+  `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
+
+### Restaurar un respaldo (recuperación)
+
+`sudo deploy menu` → **Respaldos** → **"Restaurar un respaldo"**
+(o `sudo deploy database restore`):
+
+```bash
+sudo deploy database restore                 # lista y deja elegir por número
+sudo deploy database restore --last           # el respaldo más reciente
+sudo deploy database restore --file <ruta>    # un archivo específico
+sudo deploy database restore --last --yes      # automatización (sin confirmación)
+```
+
+- **Antes de tocar la base** guarda un respaldo de seguridad del estado ACTUAL
+  (`pre-restore-<base>-<fecha>.sql.gz.enc`). Si ese paso falla, **aborta**.
+- Pide **confirmación explícita**: hay que escribir `RESTAURAR` (sin terminal y sin
+  `--yes` se rechaza; usa `--yes` sólo en automatización).
+- Al terminar sugiere `sudo deploy health simple` para confirmar que la app quedó sana.
+- Si el descifrado falla (clave incorrecta/archivo corrupto), la base **no** se
+  modifica. Si la carga falla a mitad, avisa y deja el `pre-restore` para volver.
+
+---
+
+## 6. Troubleshooting rápido
 
 | Síntoma | Causa / Fix |
 |---|---|
-| `apt: Unmet dependencies` / dpkg roto | Falta un `.deb` en `assets`. Reenviá `assets/system/` completo por FTP. Offline no hay `apt -f install`. |
-| Backend crash-loop, `Duplicate column` | Esquema desincronizado con migraciones. `reset-schema` (BD vacía) + reinstalar backend. No usar `run-schema`. |
+| `apt: Unmet dependencies` / dpkg roto | Falta un `.deb` en `assets`. Reenviá `deploy_system_assets.rar` (o `deploy_assets_all.rar`) y extraelo en `/app/deploy`. Offline no hay `apt -f install`. |
+| Backend crash-loop, `Duplicate column` | Esquema desincronizado con migraciones. `reset-schema` (borra tablas, conserva la base) + reinstalar backend; EF reconstruye el esquema. |
 | `AADSTS50011 redirect_uri mismatch` | La URI no está registrada en Entra, o el `.env` tiene doble esquema. Registrar en Entra como **SPA** y rebuildear el front con la URI correcta. |
 | `/api/health` devuelve HTML | nginx no matchea `/api`. Re-aplicar: `sudo deploy nginx reload` / re-correr setup. |
 | Backend no arranca, `config.env` con CHANGE_ME | Completar `config.env` (`deploy system edit-config`) y reiniciar. |
