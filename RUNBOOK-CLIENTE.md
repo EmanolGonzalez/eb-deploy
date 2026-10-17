@@ -8,8 +8,59 @@
 
 ## 0. Regla de entrega (IMPORTANTE)
 
-- El paquete se transfiere por **FTP: la carpeta `bs_deploy` COMPLETA** (con `assets/` poblada). **NUNCA un `git clone`** — los `.deb`/tarballs están gitignoreados y un clone deja `assets/` vacío → el bootstrap se rompe sin internet.
-- **Script y assets viajan juntos.** Si actualizás `setup/bootstrap.sh`, subí también `assets/system/`. No hagas cherry-pick de un solo archivo.
+La transferencia va **partida**: el toolkit liviano y cada grupo de assets en su
+propio `.rar`. Así un cambio de una línea no obliga a subir ~1.1 GB.
+
+| Parte | Contenido | Peso aprox. |
+|---|---|---|
+| `deploy.rar` | toolkit (bin, core, modules, setup, scripts, runbooks), **sin `assets/`** | 148 KB |
+| `deploy_dotnet_assets.rar` | `assets/dotnet/` (SDK .NET) | 229 MB |
+| `deploy_system_assets.rar` | `assets/system/` (.deb del SO) | 68 MB |
+| `deploy_node_assets.rar` | `assets/node/` | 29 MB |
+| `deploy_database_assets.rar` | `assets/database/` | 3.9 MB |
+| `deploy_nginx_assets.rar` | `assets/nginx/` | 792 KB |
+| `deploy_tools_assets.rar` | `assets/tools/` (rar/unrar) | 736 KB |
+| `deploy_packages_assets.rar` | `assets/packages/` | vacío hoy |
+| `deploy_observability_assets.rar` | `assets/observability/` | 750 MB |
+| `deploy_assets_all.rar` | todos los assets juntos (`--all`) | ~1.1 GB |
+| `SHA256SUMS.txt` | checksum SHA-256 de cada parte | — |
+
+- **Generación (máquina de build, con `rar`/WinRAR):**
+  ```bash
+  scripts/pack-transfer.sh                 # deploy.rar + una parte por grupo
+  scripts/pack-transfer.sh --all           # deploy.rar + deploy_assets_all.rar
+  scripts/pack-transfer.sh --only nginx    # deploy.rar + solo nginx (incremental)
+  ```
+  Salida por defecto: `transfer/` (gitignoreado). `--out <dir>` cambia el destino.
+- **Qué subir según el escenario:**
+  - **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+    `database`, `nginx`, `tools` (y `observability` **solo si el sitio usa** el
+    stack de observabilidad). `packages` solo si no está vacío. También podés
+    usar `deploy_assets_all.rar` para una sola subida.
+  - **Servidor existente que solo actualiza el toolkit:** `deploy.rar` únicamente.
+  - **Cambió un asset puntual:** `deploy.rar` (si también cambió el toolkit) +
+    la parte del grupo afectado.
+- **Extracción:** cada parte de assets guarda `assets/<grupo>/...`; extraé
+  **siempre en la raíz del repo** (`/app/deploy`) para reconstituir el árbol:
+  ```bash
+  cd /app/deploy
+  sudo unrar x /ruta/deploy.rar
+  sudo unrar x /ruta/deploy_<grupo>_assets.rar
+  ```
+- **Verificación de integridad:** con las partes y `SHA256SUMS.txt` en la misma
+  carpeta, antes de extraer:
+  ```bash
+  cd /ruta/donde/estan/las/partes
+  sha256sum -c SHA256SUMS.txt
+  ```
+- **NUNCA un `git clone`** — los `.deb`/tarballs están gitignoreados y un clone
+  deja `assets/` vacío → el bootstrap se rompe sin internet.
+- **Licencia:** crear los `.rar` requiere WinRAR/`rar` con licencia en la
+  máquina de build. El cliente **solo necesita `unrar`** para extraer (sin
+  licencia); el binario viaja en `assets/tools/rarlinux-*.tar.gz` y
+  `bootstrap.sh` lo instala. Si el servidor está limpio y todavía no tiene
+  `unrar`, subí ese `.tar.gz` (736 KB) aparte y extraelo con `tar`; después el
+  toolkit instala `rar`/`unrar` desde `assets/tools/`.
 - Git es solo para versionar/resguardar el código.
 
 ## Prerrequisitos de infraestructura
@@ -35,8 +86,9 @@
 > acciones ocultas.
 
 ```bash
-# 1) Copiar por FTP la carpeta bs_deploy completa a  /app/deploy
-#    (incluye assets/ con los .deb y tarballs)
+# 1) Transferir el paquete partido (ver §0) a /app/deploy:
+#      deploy.rar + deploy_<grupo>_assets.rar que correspondan
+#    Verificar checksums y extraer con 'unrar x' EN LA RAIZ (/app/deploy).
 
 # 2) Setup: bootstrap offline + nginx + systemd + config.env + CLI
 sudo bash /app/deploy/setup/setup-server.sh
@@ -246,7 +298,7 @@ sudo deploy database restore --last --yes      # automatización (sin confirmaci
 
 | Síntoma | Causa / Fix |
 |---|---|
-| `apt: Unmet dependencies` / dpkg roto | Falta un `.deb` en `assets`. Reenviá `assets/system/` completo por FTP. Offline no hay `apt -f install`. |
+| `apt: Unmet dependencies` / dpkg roto | Falta un `.deb` en `assets`. Reenviá `deploy_system_assets.rar` (o `deploy_assets_all.rar`) y extraelo en `/app/deploy`. Offline no hay `apt -f install`. |
 | Backend crash-loop, `Duplicate column` | Esquema desincronizado con migraciones. `reset-schema` (borra tablas, conserva la base) + reinstalar backend; EF reconstruye el esquema. |
 | `AADSTS50011 redirect_uri mismatch` | La URI no está registrada en Entra, o el `.env` tiene doble esquema. Registrar en Entra como **SPA** y rebuildear el front con la URI correcta. |
 | `/api/health` devuelve HTML | nginx no matchea `/api`. Re-aplicar: `sudo deploy nginx reload` / re-correr setup. |
