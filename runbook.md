@@ -28,7 +28,9 @@ Las `VITE_*` se **hornean** en `npm run build`, NO se leen en runtime. Si las ca
 
 ### FASE 1 — Llevar al server (offline)
 
-- [ ] Copiar `bs_deploy/` completo (con `assets/*.deb`) a `/app/deploy`.
+- [ ] Generar el paquete partido: `scripts/pack-transfer.sh` (o `--all`). Ver **Paso 1**.
+- [ ] Subir `deploy.rar` + las partes de assets que correspondan y extraerlas con
+      `unrar x` **en la raiz** (`/app/deploy`). Verificar `SHA256SUMS.txt`.
 - [ ] `app.rar` frontend → `/app/artifacts/frontend.rar`; backend → `/app/artifacts/backend.rar`.
 - [ ] `deploy system lint` → **verde** (sintaxis, `local`, SSL). Si falla, NO sigas.
 
@@ -97,6 +99,7 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 | `update.sh` | Actualiza un componente con auto-rollback si el healthcheck falla |
 | `rollback.sh` | Restaura un componente a una version instalada localmente |
 | `release.sh` | Construye y empaqueta un componente en app.rar (se ejecuta desde dev) |
+| `scripts/pack-transfer.sh` | Genera `deploy.rar` + una parte de assets por grupo + `SHA256SUMS.txt` (se ejecuta desde dev) |
 | `healthcheck.sh` | Valida que backend/frontend esten operativos |
 | `status.sh` | Reporte de estado completo del sistema |
 | `set-db-connection.sh` | Configura la cadena de conexion de base de datos |
@@ -203,14 +206,60 @@ Ejemplo:
 
 ## Preparacion del entorno (primera vez)
 
-### Paso 1 — Copiar el sistema de deploy al servidor
+### Paso 1 — Generar y copiar el sistema de deploy al servidor
 
-Copia toda la carpeta `deploy/` al servidor (SCP, USB, etc.):
+La transferencia va **partida**: `deploy.rar` lleva solo el toolkit y cada grupo
+de `assets/` viaja en su propio `deploy_<grupo>_assets.rar`. Generá las partes en
+la **maquina de build** (necesita `rar`/WinRAR con licencia):
 
 ```bash
-scp -r deploy/ user@servidor:/tmp/deploy
-ssh user@servidor "sudo cp -r /tmp/deploy /app/deploy && sudo chmod +x /app/deploy/*.sh /app/deploy/bin/* /app/deploy/modules/*/commands/*.sh"
+scripts/pack-transfer.sh                 # deploy.rar + una parte por grupo
+scripts/pack-transfer.sh --all           # deploy.rar + deploy_assets_all.rar
+scripts/pack-transfer.sh --only nginx    # deploy.rar + solo nginx (incremental)
 ```
+
+Salida por defecto: `transfer/` (gitignoreado); `--out <dir>` cambia el destino.
+Cada parte de assets guarda las rutas `assets/<grupo>/...`, así que al extraerla
+en `/app/deploy` el arbol queda igual que con la carpeta completa.
+
+**Que subir segun el escenario:**
+
+- **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+  `database`, `nginx`, `tools` (+ `observability` **solo si el sitio usa** el
+  stack ADR-007; `packages` solo si no esta vacio). Tambien podes usar
+  `deploy_assets_all.rar` para una sola subida.
+- **Servidor existente que solo actualiza el toolkit:** `deploy.rar` unicamente.
+- **Cambio de un asset puntual:** `deploy.rar` (si tambien cambio el toolkit) +
+  la parte del grupo afectado.
+
+**Transferir, verificar y extraer** (cliente; solo necesita `unrar`):
+
+```bash
+# 1) Subir las partes + SHA256SUMS.txt a /tmp/transfer (SCP, FTP, USB)
+# 2) Verificar integridad ANTES de extraer:
+cd /tmp/transfer
+sha256sum -c SHA256SUMS.txt
+
+# 3) Extraer en la raiz del repo, una parte por vez:
+sudo mkdir -p /app/deploy
+cd /app/deploy
+sudo unrar x /tmp/transfer/deploy.rar
+sudo unrar x /tmp/transfer/deploy_system_assets.rar
+# ... repetir por cada grupo que corresponda
+```
+
+**Servidor limpio sin `unrar`:** subí ademas
+`assets/tools/rarlinux-x64-720.tar.gz` (736 KB) y extraelo con `tar`; ese
+binario sirve para extraer las partes. Despues `bootstrap.sh` instala
+`rar`/`unrar` desde `assets/tools/`.
+
+**Licencia:** crear los `.rar` requiere WinRAR/`rar` con licencia en la maquina
+de build. El cliente solo necesita `unrar` (sin licencia).
+
+> Alternativa sin split (no recomendada para cambios chicos): copiar la carpeta
+> `bs_deploy` completa, con `assets/` poblada, a `/app/deploy`. **Nunca** un
+> `git clone`: los `.deb`/tarballs estan gitignoreados y `assets/` quedaria
+> vacio.
 
 ### Paso 2 — Bootstrap (instalacion offline de dependencias)
 
@@ -547,13 +596,17 @@ journalctl -u nginx -n 50
 ```
 [Dev / CI]                          [Servidor]
 
-release.sh                          scp -r deploy/ user@server:/tmp/deploy
-  ├── selecciona componente          ssh user@server "sudo cp -r /tmp/deploy /app/deploy"
-  ├── ingresa version
-  ├── build local (npm/dotnet)       sudo bash /app/deploy/setup/bootstrap.sh
-  ├── WinRAR → app.rar                 ├── instala desde assets/ (offline)
-  └── muestra ruta de app.rar          ├── Node.js, .NET SDK, rar/unrar
-                                         └── fallback a apt si no hay asset
+scripts/pack-transfer.sh            scp deploy.rar + deploy_<grupo>_assets.rar
+  ├── deploy.rar (sin assets)         + SHA256SUMS.txt → /tmp/transfer
+  ├── deploy_<grupo>_assets.rar       sha256sum -c SHA256SUMS.txt
+  └── SHA256SUMS.txt                  cd /app/deploy && unrar x <cada parte>
+
+release.sh                          sudo bash /app/deploy/setup/bootstrap.sh
+  ├── selecciona componente            ├── instala desde assets/ (offline)
+  ├── ingresa version                  ├── Node.js, .NET SDK, rar/unrar
+  ├── build local (npm/dotnet)         └── fallback a apt si no hay asset
+  ├── WinRAR → app.rar
+  └── muestra ruta de app.rar
 
                                       sudo bash /app/deploy/setup/setup-server.sh
                                         ├── habilita Nginx, systemd
