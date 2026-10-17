@@ -94,7 +94,7 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 | `ops-menu.sh` | Consola de operaciones — entrypoint del sistema en el servidor |
 | `setup/setup-server.sh` | Aprovisionamiento inicial: instala dependencias, crea config.env |
 | `install.sh` | Instala un componente desde un archivo app.rar local |
-| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck | set-developer | run-schema | reset-schemafalla |
+| `update.sh` | Actualiza un componente con auto-rollback si el healthcheck falla |
 | `rollback.sh` | Restaura un componente a una version instalada localmente |
 | `release.sh` | Construye y empaqueta un componente en app.rar (se ejecuta desde dev) |
 | `healthcheck.sh` | Valida que backend/frontend esten operativos |
@@ -302,13 +302,35 @@ O via CLI:
 bash /app/deploy/bin/deploy menu
 ```
 
-El menu modular tiene submenus por dominio:
-- **Backend / Frontend** — install, update, rollback
-- **App Health** — full, check, status, set-endpoint
-- **Database** — check, set-developer, run-schema, reset-schema
-- **Nginx** — configure-https, reload
-- **System** — setup, edit-config, uninstall, services, rotate-pem, rotate-pii, audit, lint
-- **Release** — build
+El menu principal agrupa las tareas por **categoría** ("¿qué querés hacer?"):
+
+1. **¿Cómo está el sistema?** — estado (un toque) · diagnóstico completo · historial de deploys (auditoría)
+2. **Respaldos** — configurar / ver los existentes
+3. **Actualizar la aplicación** — Backend · Frontend · Observabilidad
+4. **Base de datos** — crear base · verificar conexión · reset de esquema · asignar rol Developer
+5. **Configuración y seguridad** — editar config.env · HTTPS interno · recargar nginx · rotar llave RSA · rotar Hash Key PII · gestionar servicios
+6. **🔧 Avanzado** (solo con `DEPLOY_DEV_MODE=1`) — Let's Encrypt · release (build) · desinstalar
+
+Las categorías son una **vista**: cada opción despacha al mismo comando de la CLI
+(`deploy <modulo> <accion>`), así que la automatización y los runbooks no cambian.
+Los menús por módulo siguen disponibles: `deploy <modulo>` (sin acción) abre el
+menú de ese módulo.
+
+**Base de datos:** el esquema lo aplica EF automaticamente al arrancar. El comando
+`run-schema` fue **removido**. Si falta la base entera: `deploy database create`
+(la crea vacia). Si el esquema quedo roto: `deploy database reset-schema` (borra
+las tablas, conserva la base) y EF reconstruye al arrancar.
+
+**Modo desarrollador:** la categoría **6) Avanzado** (Let's Encrypt, release,
+desinstalar) NO se lista en el menu del cliente. Para mostrarla (solo
+desarrollo/CI):
+
+```bash
+DEPLOY_DEV_MODE=1 bash /app/deploy/bin/deploy menu
+```
+
+Los comandos siguen funcionando al invocarlos directo (`deploy nginx
+configure-letsencrypt`, `deploy system uninstall`, `deploy release build`, ...).
 
 ### CLI directa
 
@@ -375,6 +397,21 @@ El healthcheck de backend verifica en orden:
 
 ### Estado del sistema
 
+Vista simple para el operador (un solo comando, sin jerga ni JSON). Corre
+**sin accion** — `deploy health` muestra el estado y termina con un veredicto:
+`→ TODO FUNCIONANDO` (exit 0) o una linea accionable `→ QUÉ HACER: ...`
+(exit 1). Si el modulo de observabilidad no esta instalado, esa linea se omite.
+
+```bash
+deploy health                     # estado simple (recomendado)
+[OK]   Página web
+[OK]   Aplicación
+[OK]   Base de datos
+→ TODO FUNCIONANDO
+```
+
+El diagnostico tecnico sigue disponible:
+
 ```bash
 bash status.sh          # texto legible
 bash status.sh --json   # JSON para automatizacion/monitoreo
@@ -424,12 +461,53 @@ Crea o actualiza el virtual host Nginx para subdominio interno con certificado T
 Requiere **dos VMs separadas** (una para la BD, otra para la app) — este toolkit corre en la VM de la app y hace `mariadb-dump` **remoto** contra la BD via `ConnectionStrings__MariaDB`. El dump cifrado queda en `Backup__Dir` (default `/app/backups`) **en la VM de la app**, no en la de la BD — eso ya es un segundo medio real, no una copia en el mismo disco.
 
 - `deploy system setup` autogenera `Backup__EncryptionPassphrase` la primera vez (igual que `PiiEncryption__HashKeyBase64`) y la muestra una sola vez — **respaldala fuera del servidor**. Sin ella, los backups cifrados quedan ilegibles para siempre.
-- Corre automaticamente todos los dias a las 03:00 (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh`.
-- Manual: `deploy menu` → Database → "Correr backup ahora", o `bash modules/database/commands/backup.sh`.
+- Corre automaticamente **cada 3 dias a las 03:00** (+/- 10 min) via `backup.timer` / `backup.service` (systemd), instalado por `setup-server.sh` (unidades renderizadas desde `modules/database/lib/backup-schedule.sh`).
+  - Mecanismo: `OnCalendar=*-*-01/3 03:00:00` (dias 1, 4, 7, …) + `Persistent=true`. Se prefiere a `OnUnitActiveSec=3d` porque es hora fija de reloj (no se corre con cada ejecucion manual) y `Persistent=true` recupera la corrida si el server estaba apagado.
+- Operador: `deploy menu` → Database → **"Respaldos (configurar / ver los existentes)"** o `deploy database backup`:
+  - Si **no esta configurado** → ofrece configurarlo: asegura la passphrase (genera si falta; `deploy system setup` tambien lo hace), crea la carpeta `Backup__Dir` y **instala el timer** (pide confirmacion y explica en lenguaje simple).
+  - Si **ya esta configurado** → **lista los respaldos existentes** (fecha + tamano, mas reciente primero) y el estado de la programacion (proxima/ultima corrida).
 - Retencion local configurable en `Backup__RetentionDays` (default 14 dias) — borra automaticamente los `.sql.gz.enc` mas viejos.
+- Forzar un respaldo ahora: `systemctl start backup.service`.
+- Verificar la programacion: `systemctl list-timers backup.timer` (NEXT/LAST) o `systemctl show backup.timer -p NextElapseUSecRealtime -p LastTriggerUSec`.
 - Ver logs: `journalctl -u backup.service -n 50`.
 
-**Restaurar / descifrar un backup:**
+### Restaurar un respaldo (recuperacion)
+
+**Operador:** `deploy menu` → **Respaldos** → **"Restaurar un respaldo"**, o
+`deploy database restore`.
+
+```bash
+sudo deploy database restore                 # lista y deja elegir por numero
+sudo deploy database restore --last           # el respaldo regular mas reciente
+sudo deploy database restore --file <ruta>    # un archivo especifico
+sudo deploy database restore --last --yes      # automatizacion (sin prompt)
+```
+
+Flujo:
+
+1. **Lista** los respaldos de la base actual (fecha + tamano, mas reciente primero)
+   — incluye los `pre-restore-*`. Sin seleccion, muestra la lista y sale.
+2. El operador elige uno por numero (o `--last` / `--file`).
+3. **Confirmacion explicita**: muestra una advertencia de que se REEMPLAZA el
+   contenido actual y pide escribir `RESTAURAR`. Sin terminal y sin `--yes` se
+   **rechaza** (no hay forma de confirmar a ciegas).
+4. **Respaldo pre-restore obligatorio**: antes de tocar la base, guarda el estado
+   ACTUAL en `pre-restore-${DB}-<timestamp>.sql.gz.enc` (mismo `Backup__Dir`). Si
+   este paso falla, **se aborta** la restauracion.
+5. **Restaura**: descifra (AES-256) → gunzip → carga en `${DB}` via
+   `ConnectionStrings__MariaDB` (cliente directo o docker), igual que `backup.sh`.
+6. **Verifica**: sugiere `deploy health simple` y reporta la ruta del pre-restore.
+
+Fallos:
+
+- Passphrase ausente/`CHANGE_ME` o cadena de conexion invalida → aborta con mensaje
+  claro, sin tocar la base.
+- Descifrado fallido (passphrase incorrecta / archivo corrupto) → la base **NO** se
+  modifica.
+- Carga fallida a mitad → avisa que la base puede quedar incompleta y reporta el
+  `pre-restore`; para volver: `deploy database restore --file <pre-restore> --yes`.
+
+**Restaurar manualmente (sin el toolkit):**
 
 ```bash
 openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:<Backup__EncryptionPassphrase>" \

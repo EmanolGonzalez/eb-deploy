@@ -7,22 +7,32 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$MODULE_DIR/../../core/logger.sh"
 source "$MODULE_DIR/../../core/input.sh"
+source "$MODULE_DIR/../../core/devmode.sh" 2>/dev/null || {
+  deploy_dev_mode() { [[ "${DEPLOY_DEV_MODE:-}" == "1" ]]; }
+  dev_mode_banner() { deploy_dev_mode && echo "*** MODO DESARROLLADOR ACTIVO ***" || true; }
+}
 
 while true; do
   echo
   divider
   echo "  SYSTEM MENU"
+  dev_mode_banner
   divider
-  menu_select "Selecciona una accion:" \
-    "Setup server" \
-    "Editar config.env" \
-    "Uninstall" \
-    "Services (backend/nginx)" \
-    "Rotar clave RSA" \
-    "Rotar PII Hash Key (Busquedas)" \
-    "Audit log" \
-    "Lint (verificar scripts)" \
-    "Volver al menu principal"
+  # Curation: Uninstall es una accion de riesgo y SOLO se lista con developer
+  # mode activo; el comando sigue funcionando directo (deploy system uninstall).
+  local_options=("Setup server")
+  local_options+=("Editar config.env")
+  if deploy_dev_mode; then
+    local_options+=("Uninstall")
+  fi
+  local_options+=("Services (backend/nginx)")
+  local_options+=("Rotar clave RSA")
+  local_options+=("Rotar PII Hash Key (Busquedas)")
+  local_options+=("Audit log")
+  local_options+=("Lint (verificar scripts)")
+  local_options+=("Volver al menu principal")
+
+  menu_select "Selecciona una accion:" "${local_options[@]}"
 
   case "$MENU_SELECTION" in
     "Setup server")          bash "$MODULE_DIR/commands/setup.sh" ;;

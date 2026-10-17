@@ -13,24 +13,30 @@ while true; do
   divider
   echo "  DATABASE MENU"
   divider
-  # M1: idioma unificado a espanol. M7: la accion destructiva (Resetear esquema)
-  # va al final, separada visualmente, para no quedar contigua a "Ejecutar esquema".
+  # Este modulo NO tiene acciones gateadas por developer mode: todas son
+  # operaciones soportadas del operador.
+  #   - create: recrea la base si alguien la borro (EF migra al arrancar).
+  #   - reset-schema: reset de emergencia (borra tablas, conserva la base).
+  #   - set-developer: forma soportada de otorgar el nivel administrativo maximo.
+  #   - backup: si no esta configurado, lo configura (passphrase + timer cada
+  #     3 dias); si ya lo esta, LISTA los respaldos existentes.
+  #   - restore: restaura un respaldo (toma un pre-restore del estado actual).
   menu_select "Selecciona una accion:" \
+    "Respaldos (configurar / ver los existentes)" \
+    "Restaurar un respaldo" \
+    "Crear base de datos (si fue eliminada)" \
     "Verificar conexion a BD" \
+    "Reset de esquema (borra tablas, conserva la base)" \
     "Asignar rol Developer" \
-    "Ejecutar esquema de la base de datos" \
-    "Correr backup ahora" \
-    "--- [DESTRUCTIVO] ---" \
-    "Resetear esquema (elimina TODAS las tablas)" \
     "Volver al menu principal"
 
   case "$MENU_SELECTION" in
-    "Verificar conexion a BD") bash "$MODULE_DIR/commands/check.sh" ;;
-    "Asignar rol Developer") bash "$MODULE_DIR/commands/set-developer.sh" ;;
-    "Ejecutar esquema de la base de datos") bash "$MODULE_DIR/commands/run-schema.sh" ;;
-    "Correr backup ahora") bash "$MODULE_DIR/commands/backup.sh" ;;
-    "--- [DESTRUCTIVO] ---") log "Es un separador, no una accion. Elegi una opcion valida." ;;
-    "Resetear esquema (elimina TODAS las tablas)") bash "$MODULE_DIR/commands/reset-schema.sh" ;;
+    "Respaldos (configurar / ver los existentes)")        bash "$MODULE_DIR/commands/backup.sh" ;;
+    "Restaurar un respaldo")                              bash "$MODULE_DIR/commands/restore.sh" ;;
+    "Crear base de datos (si fue eliminada)")             bash "$MODULE_DIR/commands/create.sh" ;;
+    "Verificar conexion a BD")                            bash "$MODULE_DIR/commands/check.sh" ;;
+    "Reset de esquema (borra tablas, conserva la base)")  bash "$MODULE_DIR/commands/reset-schema.sh" ;;
+    "Asignar rol Developer")                              bash "$MODULE_DIR/commands/set-developer.sh" ;;
     "Volver al menu principal") exit 0 ;;
     *) exit 0 ;;
   esac

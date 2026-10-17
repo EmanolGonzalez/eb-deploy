@@ -11,4 +11,6 @@ source "$DB_BASE/core/config.sh"
 source "$DB_BASE/core/db.sh"
 source "$DB_BASE/core/system.sh"
 
-CONFIG_FILE="/app/config/config.env"
+# Respetar un CONFIG_FILE pre-establecido (mismo patron que core/config.sh);
+# en el server va sin definir y queda el default de produccion.
+CONFIG_FILE="${CONFIG_FILE:-/app/config/config.env}"

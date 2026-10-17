@@ -21,6 +21,13 @@ DEPLOY_BASE="$(cd "$SCRIPT_DIR/.." && pwd)"
 [[ -f "$DEPLOY_BASE/core/config.sh" ]] && source "$DEPLOY_BASE/core/config.sh"
 [[ -f "$DEPLOY_BASE/core/system.sh" ]] && source "$DEPLOY_BASE/core/system.sh"
 [[ -f "$DEPLOY_BASE/core/csp.sh" ]] && source "$DEPLOY_BASE/core/csp.sh"
+# Canonical backup.service / backup.timer renderers (single source of truth,
+# shared with `deploy database backup`) so the units cannot drift between the
+# day-0 setup and the operator (re)configure path.
+# shellcheck source=/dev/null
+if [[ -f "$DEPLOY_BASE/modules/database/lib/backup-schedule.sh" ]]; then
+  source "$DEPLOY_BASE/modules/database/lib/backup-schedule.sh"
+fi
 
 # Version esperada del schema de config.env. Subir cuando se agregan o
 # eliminan variables incompatibles. check_config_version() avisa si el
@@ -637,37 +644,9 @@ WantedBy=multi-user.target
 SYSTEMDEOF
 }
 
-render_backup_service_unit() {
-  cat <<SYSTEMDEOF
-[Unit]
-Description=Backup cifrado de MariaDB (dump remoto + retencion)
-After=network.target
-
-[Service]
-Type=oneshot
-User=${SERVICE_USER}
-Group=${SERVICE_GROUP}
-EnvironmentFile=/app/config/config.env
-ExecStart=/bin/bash /app/deploy/modules/database/commands/backup.sh --non-interactive
-StandardOutput=journal
-StandardError=journal
-SYSTEMDEOF
-}
-
-render_backup_timer_unit() {
-  cat <<SYSTEMDEOF
-[Unit]
-Description=Disparador diario de backup.service
-
-[Timer]
-OnCalendar=*-*-* 03:00:00
-RandomizedDelaySec=600
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-SYSTEMDEOF
-}
+# backup.service / backup.timer se renderizan desde
+# modules/database/lib/backup-schedule.sh (fuente unica, compartida con
+# `deploy database backup`). No redefinir las unidades aca.
 
 render_nginx_site_config() {
   # Hash CSP del <style> inline del loader: se LEE del valor persistido por
@@ -973,7 +952,7 @@ if [[ "$service_synced" -eq 0 || "$timer_synced" -eq 0 ]]; then
   systemctl daemon-reload
 fi
 systemctl enable --now backup.timer
-ok "backup.timer activo (corre backup.service diario a las 03:00 +/- 10min)."
+ok "backup.timer activo (corre backup.service cada 3 dias a las 03:00 +/- 10min)."
 
 # 7. Registrar CLI global 'deploy'
 log "Registrando CLI global 'deploy'..."
