@@ -119,7 +119,25 @@ build_backend() {
   #
   # OJO: el servicio arranca por 'dotnet Api.dll' (setup-server.sh), no por
   # el apphost. Api.dll tiene que seguir estando en el publish.
-  dotnet publish "${REPO_ROOT}/backend/Api/Api.csproj" -c Release -o "$publish_dir" --nologo \
+  #
+  # Layout: el backend movio sus proyectos a src/ (refactor/estructura-backend).
+  # Se aceptan ambas ubicaciones para que el paquete del backend y este toolkit
+  # puedan actualizarse en entregas separadas sin romper el build.
+  local backend_dir="${REPO_ROOT}/backend"
+  local api_csproj="${backend_dir}/src/Api/Api.csproj"
+  local keyjob_csproj="${backend_dir}/src/KeyReencryptionJob/KeyReencryptionJob.csproj"
+  [[ -f "$api_csproj" ]] || api_csproj="${backend_dir}/Api/Api.csproj"
+  [[ -f "$keyjob_csproj" ]] || keyjob_csproj="${backend_dir}/KeyReencryptionJob/KeyReencryptionJob.csproj"
+  if [[ ! -f "$api_csproj" ]]; then
+    err "No encuentro Api.csproj (probé backend/src/Api y backend/Api)."
+    exit 1
+  fi
+  if [[ ! -f "$keyjob_csproj" ]]; then
+    err "No encuentro KeyReencryptionJob.csproj (probé backend/src/KeyReencryptionJob y backend/KeyReencryptionJob)."
+    exit 1
+  fi
+
+  dotnet publish "$api_csproj" -c Release -o "$publish_dir" --nologo \
     -r linux-x64 --self-contained false \
     -p:DebugType=none \
     -p:SatelliteResourceLanguages=en
@@ -135,7 +153,7 @@ build_backend() {
   # copiara la carpeta al server a mano y de 'dotnet run --no-build' sobre
   # fuentes/obj de esa copia: frágil y nunca verificado end-to-end.
   log "Publicando KeyReencryptionJob..."
-  dotnet publish "${REPO_ROOT}/backend/KeyReencryptionJob/KeyReencryptionJob.csproj" -c Release -o "$publish_dir/KeyReencryptionJob" --nologo \
+  dotnet publish "$keyjob_csproj" -c Release -o "$publish_dir/KeyReencryptionJob" --nologo \
     -r linux-x64 --self-contained false \
     -p:DebugType=none \
     -p:SatelliteResourceLanguages=en
