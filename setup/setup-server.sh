@@ -887,8 +887,10 @@ mkdir -p /etc/nginx/ssl
 chown "$SERVICE_USER:$SERVICE_GROUP" /app/secrets
 chmod 700 /app/secrets
 
-# /app/deploy/storage/evidences: dueno app-backend (el backend escribe aca).
+# /app/deploy/storage/evidences: dueno app-backend y solo el (evidencias biometricas).
 chown -R "$SERVICE_USER:$SERVICE_GROUP" /app/deploy/storage/evidences
+find /app/deploy/storage/evidences -type d -exec chmod 700 {} +
+find /app/deploy/storage/evidences -type f -exec chmod 600 {} +
 
 # Drop zone para certificados: el operador deja aca, configure-https los procesa.
 chown root:root /app/artifacts/ssl
