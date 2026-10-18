@@ -117,10 +117,12 @@ menu_category_respaldos() {
     echo; divider; echo "  Respaldos"; dev_mode_banner; divider
     menu_select "Selecciona una accion:" \
       "Respaldos (configurar / ver los existentes)" \
+      "Respaldar secretos (config.env + llaves)" \
       "Restaurar un respaldo" \
       "Volver al menu principal"
     case "$MENU_SELECTION" in
       "Respaldos (configurar / ver los existentes)") run_cmd database backup ;;
+      "Respaldar secretos (config.env + llaves)")    run_cmd system backup-secrets ;;
       "Restaurar un respaldo")                        run_cmd database restore ;;
       *) return 0 ;;
     esac

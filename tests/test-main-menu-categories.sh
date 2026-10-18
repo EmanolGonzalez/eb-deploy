@@ -44,9 +44,10 @@ dispatch_case "cat1.1 estado simple"  '1\n1\n\n4\n6\n' "MENU-DISPATCH health sim
 dispatch_case "cat1.2 diagnostico"     '1\n2\n\n4\n6\n' "MENU-DISPATCH health full"
 dispatch_case "cat1.3 historial"       '1\n3\n\n4\n6\n' "MENU-DISPATCH system audit"
 
-# 2) Respaldos  (submenu: 1=configurar/ver, 2=restaurar, 3=Volver; Salir = 6)
+# 2) Respaldos  (submenu: 1=configurar/ver, 2=respaldar secretos, 3=restaurar, 4=Volver; Salir = 6)
 dispatch_case "cat2.1 respaldos"        '2\n1\n\n3\n6\n' "MENU-DISPATCH database backup"
-dispatch_case "cat2.2 restaurar"        '2\n2\n\n3\n6\n' "MENU-DISPATCH database restore"
+dispatch_case "cat2.2 respaldar secretos"  '2\n2\n\n4\n6\n' "MENU-DISPATCH system backup-secrets"
+dispatch_case "cat2.3 restaurar"        '2\n3\n\n4\n6\n' "MENU-DISPATCH database restore"
 
 # 3) Actualizar la aplicacion  (3 componentes -> menu del modulo; Salir = 6)
 dispatch_case "cat3.1 backend"         '3\n1\n\n4\n6\n' "MENU-DISPATCH backend (menu)"
