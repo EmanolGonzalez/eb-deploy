@@ -104,3 +104,45 @@ validate_rar_file() {
 
   ok "Archivo validado: $path ($(du -h "$path" | cut -f1))"
 }
+
+# -----------------------------------------------------------------------------
+# cleanup_retired_files <component>
+#   Borra archivos que versiones anteriores instalaron y que ya NO forman
+#   parte del release actual (p. ej. run-schema.sh de la version vieja, que
+#   queda en disco aunque el CLI nuevo ya no lo ofrezca).
+#
+#   El listado vive en setup/retired-files.txt, una linea por archivo con
+#   formato:  <componente> <ruta-relativa-a-/app>
+#   Solo toca las rutas listadas: nunca configuracion, datos ni releases
+#   historicos (esos se conservan para rollback).
+# -----------------------------------------------------------------------------
+cleanup_retired_files() {
+  local component="$1"
+  local base_dir="${BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+  local manifest="${base_dir}/setup/retired-files.txt"
+
+  [[ -f "$manifest" ]] || return 0
+
+  local removed=0
+  local line comp rel target
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"                        # CRLF del editor Windows
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    read -r comp rel <<< "$line"
+    [[ -z "$comp" || -z "$rel" ]] && continue
+    if [[ "$comp" != "$component" && "$comp" != "*" ]]; then
+      continue
+    fi
+    # Nunca seguir rutas que escapen de INSTALL_BASE.
+    [[ "$rel" == /* || "$rel" == *..* ]] && continue
+    target="${INSTALL_BASE}/$( [[ "$comp" == "*" ]] && echo "$rel" || echo "${comp}/${rel}" )"
+    if [[ -f "$target" || -L "$target" ]]; then
+      rm -f "$target" && removed=$((removed + 1)) \
+        && log "Obsoleto retirado: $target"
+    fi
+  done < "$manifest"
+
+  if [[ "$removed" -gt 0 ]]; then
+    ok "Limpieza de obsoletos: $removed archivo(s) retirado(s) de ${component}."
+  fi
+}

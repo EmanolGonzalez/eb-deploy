@@ -1,0 +1,13 @@
+# setup/retired-files.txt
+#
+# Archivos que versiones anteriores instalaron y que el release actual ya no
+# incluye. Se aplican en 'deploy <componente> install' (despues de cambiar el
+# symlink). Solo se borran las rutas listadas aqui: configuracion, datos y
+# releases historicos NUNCA se tocan.
+#
+# Formato:  <componente|*> <ruta-relativa-a-/app>
+#
+# Ejemplo (caso real del upgrade T3): el backend viejo traia run-schema.sh y el
+# CLI nuevo ya no lo ofrece; queda en disco como basura.
+backend run-schema.sh
+backend current/run-schema.sh

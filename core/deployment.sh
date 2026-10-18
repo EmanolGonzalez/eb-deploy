@@ -84,11 +84,21 @@ install_component() {
 
   list_local_versions "$component"
 
+  # Registrar la version activa como "anterior" ANTES de cambiar el symlink.
+  # Sin esto, un upgrade hecho con 'install' (el flujo real de actualizacion)
+  # dejaba 'rollback' sin destino: previous_version.txt solo lo escribia
+  # 'update', que en el cliente no se usa para subir de version.
+  save_previous_version "$component"
+
   log "Generando checksum SHA256 del artifact..."
   checksum_artifact "$component" "$version" "$artifact_path"
 
   extract_rar "$component" "$version" "$artifact_path" || exit 1
   update_symlink "$component" "$RELEASE_DIR"
+
+  # Retirar archivos obsoletos que el release nuevo ya no incluye
+  # (ver setup/retired-files.txt). Solo borra lo listado.
+  cleanup_retired_files "$component"
 
   sync_frontend_csp "$component"
 
