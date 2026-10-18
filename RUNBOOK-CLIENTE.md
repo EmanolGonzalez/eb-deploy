@@ -100,6 +100,13 @@ sudo bash /app/deploy/setup/setup-server.sh
 #    - Instala .NET/Node/nginx/mariadb-client/sqlcmd DESDE assets (sin internet)
 #    - Abre nano para completar config.env  (ver §2)
 
+# 2.5) Respaldar secretos ANTES de seguir (PASO OBLIGATORIO en instalación nueva):
+#      el setup genera la passphrase de respaldo y la muestra UNA sola vez; sin esta
+#      copia, los respaldos de BD son ilegibles si se pierde la VM (DOC-23).
+sudo deploy system backup-secrets --out /ruta/externa/secrets-backups   # USB/offsite, NUNCA bajo /app
+sudo deploy system backup-secrets --verify /ruta/externa/secrets-backups/secrets-backup-*.enc
+#    - Guarda la passphrase con doble custodio, fuera del servidor (ver DOC-23 §Respaldo de secretos).
+
 # 3) HTTPS interno con el cert del cliente
 sudo deploy nginx configure-https
 #    - Dejá el par cert+key en /app/artifacts/ssl/  (o los pide interactivo)
