@@ -226,13 +226,23 @@ prometheus.scrape "biometric_api" {
 // --- Faro Web SDK (frontend) -> POST /collect (publicado por nginx) ---
 // Session replay desactivado por contrato (regla PII, ADR-007): no se
 // provisiona almacenamiento de replay ni se exponen rutas para el.
+// El receptor Faro no propaga el nombre de la app: sin el process de abajo
+// todos los eventos del navegador caen en service_name="unknown_service" y
+// no se pueden consultar por servicio en Grafana.
+loki.process "faro_labels" {
+  stage.static_labels {
+    values = { service_name = "eb-frontend" }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
 faro.receiver "default" {
   server {
     listen_address = "127.0.0.1"
     listen_port    = 12347
   }
   output {
-    logs   = [loki.write.default.receiver]
+    logs   = [loki.process.faro_labels.receiver]
     traces = []
   }
 }
@@ -470,6 +480,26 @@ obs_render_grafana_dashboard() {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "refId": "A", "expr": "up" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Logs — API",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "expr": "{service_name=\"biometric-deliver-api\"}" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Excepciones del navegador (Faro)",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "expr": "{service_name=\"eb-frontend\"} |= \"kind=exception\"" }
       ]
     }
   ],
