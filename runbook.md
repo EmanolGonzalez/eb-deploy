@@ -177,6 +177,15 @@ ufw enable
 
 > ⚠️ Nunca ejecutar `ufw enable` sin haber permitido el puerto 22 primero. Hacerlo bloquea la sesion SSH activa y deja el servidor inaccesible remotamente.
 
+### Cifrado del volumen de evidencias (LUKS2)
+
+Las evidencias biométricas (fotos, firmas, certificados) se guardan en
+`/app/deploy/storage/evidences`. Antes de recibir evidencias reales, ese volumen debe estar cifrado
+con LUKS2 y montado en esa ruta; el backend aplica permisos `0600`/`0700` sobre el contenido.
+
+El procedimiento completo — formateo, desbloqueo automático (keyfile, passphrase o TPM2), respaldo
+del encabezado, rotación y recuperación — está en **`RUNBOOK-LUKS.md`**.
+
 ---
 
 ## Prerrequisito: hosts (entornos cerrados)
