@@ -22,6 +22,7 @@ while true; do
   # mode activo; el comando sigue funcionando directo (deploy system uninstall).
   local_options=("Setup server")
   local_options+=("Editar config.env")
+  local_options+=("Respaldar secretos (config.env + llaves)")
   if deploy_dev_mode; then
     local_options+=("Uninstall")
   fi
@@ -37,6 +38,7 @@ while true; do
   case "$MENU_SELECTION" in
     "Setup server")          bash "$MODULE_DIR/commands/setup.sh" ;;
     "Editar config.env")     bash "$MODULE_DIR/commands/edit-config.sh" ;;
+    "Respaldar secretos (config.env + llaves)") bash "$MODULE_DIR/commands/backup-secrets.sh" ;;
     "Uninstall")             bash "$MODULE_DIR/commands/uninstall.sh" ;;
     "Services (backend/nginx)") bash "$MODULE_DIR/commands/services.sh" ;;
     "Rotar clave RSA")       bash "$MODULE_DIR/commands/rotate-pem.sh" ;;
