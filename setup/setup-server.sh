@@ -205,19 +205,24 @@ TribunalServices__Servers__External__Prod="CHANGE_ME"
 # Credenciales del tribunal (descomentar y completar las que se usen)
 # TribunalServices__Credentials__1__Username=
 # TribunalServices__Credentials__1__Password=
-# TribunalServices__Credentials__1__Secret=
+# TribunalServices__Credentials__1__HostPrefix=
 # TribunalServices__Credentials__2__Username=
 # TribunalServices__Credentials__2__Password=
-# TribunalServices__Credentials__2__Secret=
+# TribunalServices__Credentials__2__HostPrefix=
 # TribunalServices__Credentials__3__Username=
 # TribunalServices__Credentials__3__Password=
-# TribunalServices__Credentials__3__Secret=
+# TribunalServices__Credentials__3__HostPrefix=
 # TribunalServices__Credentials__4__Username=
 # TribunalServices__Credentials__4__Password=
-# TribunalServices__Credentials__4__Secret=
+# TribunalServices__Credentials__4__HostPrefix=
 # TribunalServices__Credentials__5__Username=
 # TribunalServices__Credentials__5__Password=
-# TribunalServices__Credentials__5__Secret=
+# TribunalServices__Credentials__5__HostPrefix=
+
+# Sustitucion de identidades para entornos de prueba (deshabilitada si queda vacia).
+# NUNCA configurar en produccion: reemplaza la identidad que viene del IdP.
+# TribunalServices__AuthorizedSubstitutions__0=
+# TribunalServices__SubstitutionUsuario=
 
 # =============================================================================
 # RUNTIME OVERRIDES (opcionales — tienen defaults en appsettings.json)

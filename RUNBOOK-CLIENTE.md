@@ -55,6 +55,11 @@ propio `.rar`. Así un cambio de una línea no obliga a subir ~1.1 GB.
   ```
 - **NUNCA un `git clone`** — los `.deb`/tarballs están gitignoreados y un clone
   deja `assets/` vacío → el bootstrap se rompe sin internet.
+- **Artefactos de la aplicación:** `backend.rar` y `frontend.rar` viajan aparte (FTP a
+  `/app/artifacts/`). Comparar su SHA-256 con el que informa el build antes de instalarlos.
+- **Evidencias:** `setup-server.sh` deja `/app/deploy/storage/evidences` con permisos
+  `0700` en directorios y `0600` en archivos. El volumen **no** está cifrado por decisión
+  registrada (riesgo aceptado); si se revisa, el procedimiento está en `RUNBOOK-LUKS.md`.
 - **Licencia:** crear los `.rar` requiere WinRAR/`rar` con licencia en la
   máquina de build. El cliente **solo necesita `unrar`** para extraer (sin
   licencia); el binario viaja en `assets/tools/rarlinux-*.tar.gz` y
@@ -179,7 +184,10 @@ TribunalServices__NetworkScope="Internal"     # Internal | External
 # TribunalServices__Servers__Internal__Prod=
 # TribunalServices__Credentials__1__Username=
 # TribunalServices__Credentials__1__Password=
-# TribunalServices__Credentials__1__Secret=
+# TribunalServices__Credentials__1__HostPrefix=      # prefijo del hostname interno (antes "Secret")
+# Sustitucion de identidades: SOLO para pruebas; vacio = deshabilitada.
+# TribunalServices__AuthorizedSubstitutions__0=
+# TribunalServices__SubstitutionUsuario=
 
 # --- RUNTIME OVERRIDES (opcionales, tienen default en appsettings) ---
 # Session__CookieTimeoutHours=1
@@ -246,7 +254,7 @@ sudo journalctl -u backend -f      # mirás la migración en vivo
 ```
 
 - Un arranque **único y controlado** (desde detenido) evita la carrera de `Restart=always`.
-- **BD vacía + `InitialCreate` único** → EF crea todo de cero, limpio.
+- **BD vacía + migración `Initial` única** → EF crea todo de cero, limpio.
 - La base la crea EF si no existe; si alguien la borró del servidor, `deploy database create` la recrea vacía. NO hay comando de esquema manual: EF es la única fuente de verdad.
 
 ---
