@@ -93,6 +93,12 @@ server:
   grpc_listen_port: 9096
   log_level: info
 
+# El querier debe hablar con el query frontend por loopback. Sin esta linea
+# Loki anuncia el frontend con la IP del host (p. ej. 10.0.0.4) y las queries
+# fallan con "connection refused" aunque las escrituras (push) funcionen.
+frontend_worker:
+  frontend_address: 127.0.0.1:9096
+
 common:
   path_prefix: ${OBS_LOKI_DATA}
   storage:
