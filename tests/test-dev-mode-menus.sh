@@ -76,12 +76,15 @@ check_absent     "database ON: sin banner dev (sin gating)" "$on"  "MODO DESARRO
 check_equal      "database OFF == ON (sin gating dev)"      "$off" "$on"
 
 # ── System ───────────────────────────────────────────────────────────────────
+# (Con la entrada "Respaldar secretos" agregada, "Volver" es la opcion 9 en
+# dev OFF y la 10 en dev ON.)
 SYS="$ROOT/modules/system/menu.sh"
-off="$(run_menu "$SYS" 8)"
-on="$(run_menu "$SYS" 9 1)"
+off="$(run_menu "$SYS" 9)"
+on="$(run_menu "$SYS" 10 1)"
 check_absent     "system OFF: oculta uninstall"          "$off" "Uninstall"
 check_contains   "system OFF: mantiene setup"            "$off" "Setup server"
 check_contains   "system OFF: mantiene rotate-pii"       "$off" "Rotar PII Hash Key"
+check_contains   "system OFF: muestra respaldo secretos" "$off" "Respaldar secretos"
 check_contains   "system ON: muestra uninstall"          "$on"  "Uninstall"
 check_contains   "system ON: banner dev"                 "$on"  "MODO DESARROLLADOR ACTIVO"
 
