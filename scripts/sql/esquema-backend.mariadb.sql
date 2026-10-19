@@ -22,8 +22,6 @@
 --     -o scripts/sql/esquema-backend.mariadb.sql
 --   (requiere DB_PROVIDER=MariaDB y ConnectionStrings__MariaDB: el script no
 --    abre conexion, la cadena solo satisface el diseno del contexto.)
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
     `MigrationId` varchar(150) CHARACTER SET utf8mb4 NOT NULL,
     `ProductVersion` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
@@ -554,6 +552,10 @@ CREATE INDEX `IX_system_modes_IsEnabled` ON `system_modes` (`IsEnabled`);
 
 CREATE INDEX `IX_system_modes_Mode` ON `system_modes` (`Mode`);
 
+ALTER TABLE `system_modes` ADD COLUMN `ActiveMode` varchar(50) GENERATED ALWAYS AS (case when `IsDeleted` = 0 then `Mode` else null end) STORED;
+
+CREATE UNIQUE INDEX `UX_system_modes_ActiveMode` ON `system_modes` (`ActiveMode`);
+
 CREATE INDEX `IX_user_roles_RolId` ON `user_roles` (`RolId`);
 
 CREATE UNIQUE INDEX `IX_user_roles_UserId_RolId` ON `user_roles` (`UserId`, `RolId`);
@@ -581,7 +583,7 @@ CREATE INDEX `IX_users_Telefono_hash` ON `users` (`Telefono_hash`);
 CREATE UNIQUE INDEX `IX_users_Username` ON `users` (`Username`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
-VALUES ('20260910201111_Initial', '9.0.11');
+VALUES ('20261018012052_Initial', '9.0.11');
 
 COMMIT;
 
