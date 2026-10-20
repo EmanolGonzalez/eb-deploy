@@ -592,6 +592,7 @@ StartLimitBurst=4
 Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
+UMask=0077
 ExecStart=/usr/bin/dotnet /app/backend/current/Api.dll
 WorkingDirectory=/app/backend/current
 
