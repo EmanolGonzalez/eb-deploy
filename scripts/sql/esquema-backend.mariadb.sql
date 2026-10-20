@@ -22,6 +22,7 @@
 --     -o scripts/sql/esquema-backend.mariadb.sql
 --   (requiere DB_PROVIDER=MariaDB y ConnectionStrings__MariaDB: el script no
 --    abre conexion, la cadena solo satisface el diseno del contexto.)
+
 CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
     `MigrationId` varchar(150) CHARACTER SET utf8mb4 NOT NULL,
     `ProductVersion` varchar(32) CHARACTER SET utf8mb4 NOT NULL,
@@ -434,7 +435,6 @@ CREATE TABLE `order_receivers` (
     `IsSelected` tinyint(1) NOT NULL,
     `SelectedAt` datetime(6) NULL,
     `Identification_hash` binary(32) NULL,
-    `Name_hash` binary(32) NULL,
     `CreatedAt` datetime(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `CreatedBy` longtext CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -494,8 +494,6 @@ CREATE INDEX `IX_order_receivers_DeliveryOrderId` ON `order_receivers` (`Deliver
 
 CREATE INDEX `IX_order_receivers_Identification_hash` ON `order_receivers` (`Identification_hash`);
 
-CREATE INDEX `IX_order_receivers_Name_hash` ON `order_receivers` (`Name_hash`);
-
 CREATE INDEX `IX_orders_CitizenNationalId_hash` ON `orders` (`CitizenNationalId_hash`);
 
 CREATE INDEX `IX_orders_CitizenNationalId_hash_Status` ON `orders` (`CitizenNationalId_hash`, `Status`);
@@ -521,6 +519,10 @@ CREATE INDEX `IX_orders_OfficeId_CreatedAt` ON `orders` (`OfficeId`, `CreatedAt`
 CREATE INDEX `IX_orders_OrganizationId` ON `orders` (`OrganizationId`);
 
 CREATE INDEX `IX_orders_ReferenceCode` ON `orders` (`ReferenceCode`);
+
+ALTER TABLE `orders` ADD COLUMN `ReferenceCode_norm` varchar(50) GENERATED ALWAYS AS (upper(trim(`ReferenceCode`))) STORED;
+
+CREATE INDEX `IX_orders_ReferenceCode_norm` ON `orders` (`ReferenceCode_norm`);
 
 CREATE INDEX `IX_orders_RequestedByDocument_hash` ON `orders` (`RequestedByDocument_hash`);
 
@@ -583,7 +585,7 @@ CREATE INDEX `IX_users_Telefono_hash` ON `users` (`Telefono_hash`);
 CREATE UNIQUE INDEX `IX_users_Username` ON `users` (`Username`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
-VALUES ('20261018012052_Initial', '9.0.11');
+VALUES ('20261020184740_Initial', '9.0.11');
 
 COMMIT;
 CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
