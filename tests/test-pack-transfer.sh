@@ -30,7 +30,7 @@ FAIL=0
 ok()   { printf '  ok    %s\n' "$*"; PASS=$((PASS + 1)); }
 fail() { printf '  FAIL  %s\n' "$*"; FAIL=$((FAIL + 1)); }
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { printf 'FATAL: fallo mktemp -d: no se puede preparar el directorio temporal de pruebas.\n' >&2; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 
 RAR="$(command -v rar || true)"

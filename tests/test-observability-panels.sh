@@ -22,7 +22,7 @@ RENDER="$ROOT/modules/observability/lib/render.sh"
 
 PASS=0
 FAIL=0
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { printf 'FATAL: fallo mktemp -d: no se puede preparar el directorio temporal de pruebas.\n' >&2; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 
 check() { # <name> <expected> <actual>
