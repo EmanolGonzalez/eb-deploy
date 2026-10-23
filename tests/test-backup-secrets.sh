@@ -23,7 +23,7 @@ BS="$ROOT/modules/system/commands/backup-secrets.sh"
 
 PASS=0
 FAIL=0
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { printf 'FATAL: fallo mktemp -d: no se puede preparar el directorio temporal de pruebas.\n' >&2; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 
 check() { # <name> <expected> <actual>
@@ -164,10 +164,25 @@ leftover="$(find /tmp -maxdepth 1 -name 'tmp.*' -newer "$BS" -type d 2>/dev/null
 make_sources "OTRA-passphrase"
 out="$(run "$TMP/src/config/config.env" "$TMP/src/secrets" --verify "$enc_file" </dev/null 2>&1)"; rc=$?
 check "verify con otra passphrase -> exit 1" "1" "$rc"
+check_contains "verify con otra passphrase: dice passphrase incorrecta" "$out" "passphrase incorrecta"
+check_absent   "verify con otra passphrase: NO dice archivo corrupto" "$out" "archivo corrupto"
+
+# Descifra bien (passphrase CORRECTA) pero el contenido no es un tar.gz:
+make_sources "testpass-DO-NOT-PRINT"
+printf 'no-es-un-respaldo' > "$TMP/no-tar.txt"
+if ! openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:testpass-DO-NOT-PRINT" \
+       -in "$TMP/no-tar.txt" -out "$TMP/no-tar.enc"; then
+  printf '  FAIL  fixture: no se pudo crear no-tar.enc\n'; FAIL=$((FAIL + 1))
+fi
+out="$(run "$TMP/src/config/config.env" "$TMP/src/secrets" --verify "$TMP/no-tar.enc" </dev/null 2>&1)"; rc=$?
+check "verify de contenido no-tar -> exit 1" "1" "$rc"
+check_contains "verify no-tar: dice archivo corrupto o vacio" "$out" "archivo corrupto o vacio"
+check_absent   "verify no-tar: NO acusa la passphrase" "$out" "passphrase incorrecta"
 
 printf 'no-es-un-respaldo' > "$TMP/basura.enc"
 out="$(run "$TMP/src/config/config.env" "$TMP/src/secrets" --verify "$TMP/basura.enc" </dev/null 2>&1)"; rc=$?
 check "verify de archivo corrupto -> exit 1" "1" "$rc"
+check_contains "verify de archivo corrupto: avisa fallo de descifrado" "$out" "No se pudo descifrar"
 
 out="$(run "$TMP/src/config/config.env" "$TMP/src/secrets" --verify "$TMP/no-existe.enc" </dev/null 2>&1)"; rc=$?
 check "verify de archivo inexistente -> exit 1" "1" "$rc"
@@ -191,6 +206,18 @@ check_contains "deploy system --help lista backup-secrets" "$modhelp_out" "backu
 bs_src="$(cat "$BS")"
 check_contains "usa la MISMA primitiva que backup-db.sh (aes-256-cbc -pbkdf2)" "$bs_src" "openssl enc -aes-256-cbc -pbkdf2 -salt"
 check_contains "usa Backup__EncryptionPassphrase (no otra clave)" "$bs_src" "Backup__EncryptionPassphrase"
+
+# ── 11. Harness fail-fast: mktemp roto no debe seguir con TMP vacio ──────────
+# Si mktemp falla y TMP queda vacio, los fixtures colapsan a / (p.ej. intento
+# de escribir /basura.enc). El suite debe abortar de inmediato con un aviso.
+stub_dir="$TMP/mktemp-stub"
+mkdir -p "$stub_dir"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$stub_dir/mktemp"
+chmod +x "$stub_dir/mktemp"
+harness_out="$(PATH="$stub_dir:$PATH" bash "$SCRIPT_DIR/test-backup-secrets.sh" </dev/null 2>&1)"; harness_rc=$?
+check "harness: mktemp roto -> exit 1" "1" "$harness_rc"
+check_contains "harness: mktemp roto -> avisa del fallo" "$harness_out" "mktemp"
+check_absent   "harness: mktemp roto -> no corre la suite" "$harness_out" "respaldo cifrado de secretos"
 
 echo
 printf 'ok: %d   fallos: %d\n' "$PASS" "$FAIL"

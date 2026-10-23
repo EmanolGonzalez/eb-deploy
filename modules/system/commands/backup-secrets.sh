@@ -254,14 +254,27 @@ cmd_verify() {
   local dec
   dec="$VERIFY_TMP/backup.tar.gz"
 
-  if ! openssl enc -d -aes-256-cbc -pbkdf2 \
+  # Diagnostico en dos pasos: primero el DESCIFRADO (codigo de openssl) y,
+  # solo si descifra bien, la ESTRUCTURA del tar. Asi una passphrase
+  # incorrecta y un archivo corrupto dejan de ser indistinguibles. El
+  # veredicto sigue siendo fail-safe (exit 1 en ambos casos).
+  local dec_rc=0
+  openssl enc -d -aes-256-cbc -pbkdf2 \
         -pass "pass:${Backup__EncryptionPassphrase}" \
-        -in "$file" -out "$dec" 2>/dev/null; then
-    err "No se pudo descifrar: passphrase incorrecta o archivo corrupto."
+        -in "$file" -out "$dec" 2>/dev/null || dec_rc=$?
+  if [[ "$dec_rc" -ne 0 ]]; then
+    # Un respaldo propio SIEMPRE empieza con el header "Salted__" (openssl
+    # enc -salt). Sin header el archivo ni siquiera es un cifrado valido;
+    # con header, el fallo de descifrado apunta a la passphrase.
+    if [[ "$(head -c 8 "$file" 2>/dev/null)" == "Salted__" ]]; then
+      err "No se pudo descifrar: passphrase incorrecta."
+    else
+      err "No se pudo descifrar el archivo: no es un respaldo cifrado valido o esta corrupto."
+    fi
     exit 1
   fi
   if ! tar -tzf "$dec" > "$VERIFY_TMP/listado.txt" 2>/dev/null; then
-    err "El contenido no es un respaldo valido: passphrase incorrecta o archivo corrupto."
+    err "El archivo descifra, pero su contenido no es un respaldo valido: archivo corrupto o vacio."
     exit 1
   fi
 
