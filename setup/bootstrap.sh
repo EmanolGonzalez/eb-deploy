@@ -4,9 +4,8 @@
 # =============================================================================
 set -e
 
-# Checksums (SHA-256)
-DOTNET_SDK_SHA256="a131496fe7dac21dceea13354e50a3636126fac05d6e5ccf5fb250829c6e9b6a"
-NODE_SHA256="1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce"
+# Checksums (SHA-256). El .NET SDK vive en modules/system/lib/runtime-install.sh
+# (compartido con modules/system/commands/update-runtimes.sh).
 RAR_SHA256="c2e35b7190018018e698188151811899c2e35b7190018018e698188151811899" # Placeholder
 
 # Directorios
@@ -36,6 +35,9 @@ else
     fi
   }
 fi
+
+# shellcheck source=/dev/null
+source "$BASE_DIR/modules/system/lib/runtime-install.sh"
 
 verify_checksum() {
   local file="$1"
@@ -150,59 +152,6 @@ report_packages() {
 }
 
 # =============================================================================
-# .NET SDK
-# =============================================================================
-
-install_dotnet() {
-  # Idempotente por version mayor: solo salta si ya hay un SDK 10.x.
-  # Un servidor con solo 9.x instalado NO debe saltar: el backend es net10.0.
-  if command -v dotnet &>/dev/null && dotnet --list-sdks | grep -q '^10\.'; then
-    ok "dotnet SDK 10.x ya instalado: $(dotnet --version)"
-    return
-  fi
-
-  local tarball="$ASSETS_DIR/dotnet/dotnet-sdk-10.0.402-linux-x64.tar.gz"
-  if [[ -f "$tarball" ]]; then
-    step "Instalando .NET 10 SDK desde assets"
-    if dotnet --list-sdks 2>/dev/null | grep -q '^9\.'; then
-      warn "SDK 9.x detectado; instalando 10.x en paralelo (coexisten en /usr/share/dotnet)"
-    fi
-    verify_checksum "$tarball" "$DOTNET_SDK_SHA256" ".NET SDK" || return 1
-    mkdir -p /usr/share/dotnet
-    tar -xzf "$tarball" -C /usr/share/dotnet
-    ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
-    ok ".NET SDK instalado: $(dotnet --version)"
-  else
-    err "Asset no encontrado: $tarball"
-    err "Copia el tarball del SDK .NET 10 a assets/dotnet/ antes de ejecutar este script."
-    return 1
-  fi
-}
-
-# =============================================================================
-# NODE.JS
-# =============================================================================
-
-install_node() {
-  if command -v node &>/dev/null && [[ "$(node -v 2>/dev/null)" == v22* ]]; then
-    ok "Node.js 22.x ya instalado: $(node -v)"
-    return
-  fi
-
-  local tarball="$ASSETS_DIR/node/node-v22.23.4-linux-x64.tar.xz"
-  if [[ -f "$tarball" ]]; then
-    step "Instalando Node.js 22 desde assets"
-    # verify_checksum "$tarball" "$NODE_SHA256" "Node.js" || return 1
-    tar -xJf "$tarball" -C /usr/local --strip-components=1
-    ok "Node.js instalado: $(node -v)"
-  else
-    err "Asset no encontrado: $tarball"
-    err "Copia el tarball de Node.js 22 a assets/node/ antes de ejecutar este script."
-    return 1
-  fi
-}
-
-# =============================================================================
 # RAR / UNRAR
 # =============================================================================
 
@@ -249,9 +198,10 @@ MISSING_PKGS=()
 # 1. Librerias base del sistema (deps compartidas: fuentes, imagen, xml, odbc, etc.)
 ensure_group system libgd3 libxml2 libxslt1.1 unixodbc libltdl7 libfontconfig1 libfreetype6 || true
 
-# 2. Runtimes desde tarballs (no deb) — sin cambios
+# 2. Runtimes desde tarballs (no deb). Node NO se instala: el servidor nunca
+#    ejecuta Node (el frontend se compila en la maquina de desarrollo y llega
+#    como frontend.rar ya compilado; nginx lo sirve estatico).
 install_dotnet || true
-install_node || true
 install_rar || true
 
 # 3. nginx

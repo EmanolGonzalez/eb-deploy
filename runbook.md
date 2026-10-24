@@ -117,7 +117,7 @@ Hubs del backend (todos bajo `/hubs/`, cubiertos por `location /hubs`):
 │   ├── bin/                    # Entry points (deploy CLI, menu)
 │   ├── core/                   # Utilidades reutilizables
 │   ├── modules/                # Modulos (deploy, health, database, nginx, etc.)
-│   ├── assets/                 # Dependencias offline (dotnet, node, tools)
+│   ├── assets/                 # Dependencias offline (dotnet, tools)
 │   ├── ops-menu.sh             # Menu de operaciones (legacy)
 │   └── ...
 ├── releases/
@@ -233,10 +233,12 @@ en `/app/deploy` el arbol queda igual que con la carpeta completa.
 
 **Que subir segun el escenario:**
 
-- **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+- **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`,
   `database`, `nginx`, `tools` (+ `observability` **solo si el sitio usa** el
-  stack ADR-007; `packages` solo si no esta vacio). Tambien podes usar
-  `deploy_assets_all.rar` para una sola subida.
+  stack ADR-007; `packages` solo si no esta vacio). Node NO se sube: el
+  servidor nunca ejecuta Node, el frontend llega ya compilado en
+  `frontend.rar`. Tambien podes usar `deploy_assets_all.rar` para una sola
+  subida.
 - **Servidor existente que solo actualiza el toolkit:** `deploy.rar` unicamente.
 - **Cambio de un asset puntual:** `deploy.rar` (si tambien cambio el toolkit) +
   la parte del grupo afectado.

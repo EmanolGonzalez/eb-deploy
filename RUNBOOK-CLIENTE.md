@@ -16,7 +16,6 @@ propio `.rar`. Así un cambio de una línea no obliga a subir ~1.1 GB.
 | `deploy.rar` | toolkit (bin, core, modules, setup, scripts, runbooks), **sin `assets/`** | 148 KB |
 | `deploy_dotnet_assets.rar` | `assets/dotnet/` (SDK .NET) | 229 MB |
 | `deploy_system_assets.rar` | `assets/system/` (.deb del SO) | 68 MB |
-| `deploy_node_assets.rar` | `assets/node/` | 29 MB |
 | `deploy_database_assets.rar` | `assets/database/` | 3.9 MB |
 | `deploy_nginx_assets.rar` | `assets/nginx/` | 792 KB |
 | `deploy_tools_assets.rar` | `assets/tools/` (rar/unrar) | 736 KB |
@@ -33,10 +32,12 @@ propio `.rar`. Así un cambio de una línea no obliga a subir ~1.1 GB.
   ```
   Salida por defecto: `transfer/` (gitignoreado). `--out <dir>` cambia el destino.
 - **Qué subir según el escenario:**
-  - **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`, `node`,
+  - **Servidor nuevo (air-gapped):** `deploy.rar` + `dotnet`, `system`,
     `database`, `nginx`, `tools` (y `observability` **solo si el sitio usa** el
-    stack de observabilidad). `packages` solo si no está vacío. También podés
-    usar `deploy_assets_all.rar` para una sola subida.
+    stack de observabilidad). `packages` solo si no está vacío. Node NO se
+    sube: el servidor nunca ejecuta Node, el frontend llega ya compilado en
+    `frontend.rar`. También podés usar `deploy_assets_all.rar` para una sola
+    subida.
   - **Servidor existente que solo actualiza el toolkit:** `deploy.rar` únicamente.
   - **Cambió un asset puntual:** `deploy.rar` (si también cambió el toolkit) +
     la parte del grupo afectado.
