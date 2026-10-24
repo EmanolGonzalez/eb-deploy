@@ -5,8 +5,8 @@
 set -e
 
 # Checksums (SHA-256)
-DOTNET_SDK_SHA256="137268c8ad939c064ff1ee2a6fdf0899d8725377114ea012fbd1ad5fa2550418"
-NODE_SHA256="e109d76472304859a7f34f24302636a0d312101889410118e698188151811899"
+DOTNET_SDK_SHA256="a131496fe7dac21dceea13354e50a3636126fac05d6e5ccf5fb250829c6e9b6a"
+NODE_SHA256="1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce"
 RAR_SHA256="c2e35b7190018018e698188151811899c2e35b7190018018e698188151811899" # Placeholder
 
 # Directorios
@@ -161,7 +161,7 @@ install_dotnet() {
     return
   fi
 
-  local tarball="$ASSETS_DIR/dotnet/dotnet-sdk-10.0.401-linux-x64.tar.gz"
+  local tarball="$ASSETS_DIR/dotnet/dotnet-sdk-10.0.402-linux-x64.tar.gz"
   if [[ -f "$tarball" ]]; then
     step "Instalando .NET 10 SDK desde assets"
     if dotnet --list-sdks 2>/dev/null | grep -q '^9\.'; then
@@ -189,7 +189,7 @@ install_node() {
     return
   fi
 
-  local tarball="$ASSETS_DIR/node/node-v22.14.0-linux-x64.tar.xz"
+  local tarball="$ASSETS_DIR/node/node-v22.23.4-linux-x64.tar.xz"
   if [[ -f "$tarball" ]]; then
     step "Instalando Node.js 22 desde assets"
     # verify_checksum "$tarball" "$NODE_SHA256" "Node.js" || return 1

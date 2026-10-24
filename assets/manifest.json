@@ -2,13 +2,13 @@
   "version": "1.0.0",
   "target": "linux-x64",
   "dotnet": {
-    "sdk": "10.0.401",
-    "file": "dotnet-sdk-10.0.401-linux-x64.tar.gz",
+    "sdk": "10.0.402",
+    "file": "dotnet-sdk-10.0.402-linux-x64.tar.gz",
     "install_dir": "/usr/share/dotnet"
   },
   "node": {
-    "version": "22.14.0",
-    "file": "node-v22.14.0-linux-x64.tar.xz",
+    "version": "22.23.4",
+    "file": "node-v22.23.4-linux-x64.tar.xz",
     "install_dir": "/usr/local"
   },
   "tools": {
@@ -22,7 +22,7 @@
     "assets_dir": "assets/observability/",
     "components": {
       "grafana":    { "version": "13.2.4", "sha256": "c48765988fd88572607e4ea670251af8a8e64ab3e360d0f3cf67a6f3587b92ab" },
-      "prometheus": { "version": "3.15.0", "sha256": "2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0" },
+      "prometheus": { "version": "3.15.1", "sha256": "6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84" },
       "loki":       { "version": "3.7.8",  "sha256": "62aea42c9cba52cd1642b3666ab37019a0ce4c24ab50b07e85dccc8d812f7d61" },
       "alloy":      { "version": "1.20.1", "sha256": "451fe650e8277d22d69cb8db50bba809f581fe78decba7fce4027ef185457be9" }
     }
